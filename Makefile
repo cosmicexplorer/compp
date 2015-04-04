@@ -32,7 +32,7 @@ clean:
 distclean: clean
 	@rm -rf $(DEPS)
 
-check: $(TEST_OBJ) $(TEST_COMP_OBJ)
+check: $(COFFEE_OBJ) $(DEPS) $(TEST_OBJ) $(TEST_COMP_OBJ)
 	diff $(TEST_OBJ) $(TEST_COMP_OBJ)
 
 install:

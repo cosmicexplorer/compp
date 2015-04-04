@@ -1,5 +1,8 @@
 #!/usr/bin/env coffee
 
+# frontend and argument processor for compp
+# calls to analyzeLines to do all the heavy lifting
+
 # node standard modules
 fs = require 'fs'
 path = require 'path'

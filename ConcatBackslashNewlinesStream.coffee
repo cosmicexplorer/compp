@@ -16,13 +16,6 @@ ConcatBackslashNewlinesStream = ->
     @heldLines = []
     @prevChar = ""
 
-    cb = =>
-      @emit 'end'
-    @on 'pipe', (src) =>
-      src.on 'end', cb
-    @on 'unpipe', (src) =>
-      src.removeListener 'end', cb
-
 util.inherits ConcatBackslashNewlinesStream, Transform
 
 ConcatBackslashNewlinesStream.prototype.transformProto =
@@ -36,6 +29,7 @@ ConcatBackslashNewlinesStream.prototype.transformProto =
       else if c is "\n" and @prevChar is "\\"
         @heldLines.pop()        # remove newline
         @heldLines.pop()        # remove backslash
+        # TODO: see if below is compliant behavior
         @heldLines.push " "     # add space; i think this is correct
       @prevChar = c
     @push(chunk)                # allow for piping (lol)
