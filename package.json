@@ -1,0 +1,13 @@
+{
+  "name": "comppp",
+  "version": "0.0.0",
+  "description": "A simple C preprocessor.",
+  "license": "GPL v3",
+  "author": "Danny McClanahan <danieldmcclanahan@gmail.com>",
+  "dependencies": {
+    "node-getopt": "^0.2.3"
+  },
+  "devDependencies": {
+    "coffee-script": "^1.9.1"
+  }
+}
