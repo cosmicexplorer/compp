@@ -1,9 +1,9 @@
-OUT = comppp.js
+OUT = compp.js
 
-COFFEE_OBJ = comppp.js ConcatBackslashNewlinesStream.js analyzeLines.js
+COFFEE_OBJ = compp.js ConcatBackslashNewlinesStream.js analyzeLines.js
 
 TEST_OBJ = test/test1_out_cpp.c
-TEST_COMP_OBJ = test/test1_out_comppp.c
+TEST_COMP_OBJ = test/test1_out_compp.c
 
 DEPS = node_modules
 
@@ -17,7 +17,7 @@ COFFEE_FLAGS =
 %_out_cpp.c: %_in.c
 	cpp $< -P -o $@
 
-%_out_comppp.c: %_in.c $(OUT)
+%_out_compp.c: %_in.c $(OUT)
 	node $(OUT) $< -o $@
 
 all: $(COFFEE_OBJ) $(DEPS)

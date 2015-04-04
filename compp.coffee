@@ -25,7 +25,7 @@ getOpt = new (require('node-getopt'))([
   ['v', 'version', 'Display version number.']])
 
 getOpt.setHelp(
-  "Usage: comppp [OPTION..] FILE\n\n" +
+  "Usage: compp [OPTION..] FILE\n\n" +
   "[[OPTIONS]]\n"
 )
 
