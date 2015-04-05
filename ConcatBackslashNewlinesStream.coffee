@@ -26,11 +26,9 @@ ConcatBackslashNewlinesStream.prototype.transformProto =
       if c is "\n" and @prevChar isnt "\\"
         @emit 'line', @heldLines.join("")
         @heldLines = []
-      else if c is "\n" and @prevChar is "\\"
-        @heldLines.pop()        # remove newline
-        @heldLines.pop()        # remove backslash
-        # TODO: see if below is compliant behavior
-        @heldLines.push " "     # add space; i think this is correct
+        # in the event of a backslash-newline, we let the processLine functions
+        # in analyzeLines.coffee handle it appropriately
+        # we do this so that line numbers on errors can be reported accurately
       @prevChar = c
     @push(chunk)                # allow for piping (lol)
     callback?()

@@ -5,41 +5,92 @@ stream = require 'stream'
 # local modules
 ConcatBackslashNewlinesStream = require './ConcatBackslashNewlinesStream'
 
-# constants
-directiveRegex = /^#[a-z_]+/
+# regexes
+directiveRegex = /^#[a-z_]+/g
+tokenRegex = /\b[a-zA-Z_0-9]+\b/g
+numberRegex = /[0-9]+/g
+backslashNewlineRegex = /\\\n/g
+stringInQuotes = /".*"/g
+# matches all preprocessor conditionals
+condRegex = /(if|else)/g
 
-# process preprocessor line
-insertInclude = (restOfLine, outStream, opts, dirname) ->
+# utility functions
+# throw error at file and line
+throwError = (file, line, col, err) ->
+  console.error "#{file}:#{line}:#{col}: #{err}"
+  process.exit -1
+
+getBackslashNewlinesBeforeToken = (str, tok) ->
+  ind = str.indexOf(tok)
+  if ind is null or ind is -1
+    return 0
+  prevChar = ""
+  num = 0
+  for i in [0..(ind-1)]
+    if str.charAt(i) is "\n" and prevChar is "\\"
+      ++num
+    prevChar = str.charAt(i)
+  return num
+
+# apply all macro expansions to the given string
+applyDefines = (line, opts, curDefine) ->
+  for opt in opts.defines
+    replaceString = ""
+    if opts.defines[opt] isnt null
+      replaceString = applyDefines opts.defines[opt], opts, opt
+    line.replace(new RegExp("\b#{opt}\b", "g"), replaceString)
+
+# process preprocessor line functions
+insertInclude = (directive, restOfLine, outStream, opts, dirname) ->
   outStream.write "#include#{restOfLine}"
   # TODO: write this
   # console.error "insertInclude not implemented!"
   # process.exit -1
 
-addDefine = (restOfLine, outStream, opts) ->
+addDefine = (directive, restOfLine, outStream, opts) ->
   outStream.write "#define#{restOfLine}"
   # TODO: write this
   # console.error "addDefine not implemented!"
   # process.exit -1
 
-removeDefine = (restOfLine, outStream, opts) ->
+removeDefine = (directive, restOfLine, outStream, opts) ->
   # TODO: write this
   console.error "removeDefine not implemented!"
   process.exit -1
 
-processError = (restOfLine, ifStack) ->
+processError = (directive, restOfLine, ifStack) ->
   # TODO: write this
   console.error "processError not implemented!"
   process.exit -1
 
-processPragma = (restOfLine, outStream, opts) ->
+processPragma = (directive, restOfLine, outStream, opts) ->
   # TODO: write this
   console.error "processPragma not implemented!"
   process.exit -1
 
-processLineDirective = (restOfLine, outStream, opts) ->
-  # TODO: write this
-  console.error "processLineDirective not implemented!"
-  process.exit -1
+processLineDirective = (directive, restOfLine, outStream, opts) ->
+  # TODO: report better column numbers
+  # TODO: show line of interest, with carat pointing up at column
+  toLine = restOfLine.match(tokenRegex)?[0] # get first token
+  backslashesBeforeToLine =
+    getBackslashNewlinesBeforeToken restOfLine, toLine
+  if not toLine                             # if line just "#line \n"
+    throwError opts.file, opts.line, directive.length,
+    "No line number given in #{directive} directive."
+  if not toLine.match numberRegex
+    throwError opts.file, opts.line + backslashesBeforeToLine, directive.length,
+    "Invalid line number given in #{directive} directive."
+  toFile = restOfLine.match(tokenRegex)?[1] # get second token, if exists
+  backslashesBeforeToFile = getBackslashNewlinesBeforeToken restOfLines, toFile
+  if toFile                                 # second token is optional
+    if not toFile.match stringInQuotes      # if not in quotes
+      throwError opts.file, opts.line + backslashesBeforeToFile,
+      directive.length,
+      "Invalid file name given in #{directive} directive."
+    else
+      opts.file = toFile
+  # set down here because we want to give the correct line number on error
+  opts.line = toLine
 
 processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
   # TODO: write this
@@ -47,45 +98,61 @@ processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
   process.exit -1
 
 processSourceLine = (line, outStream, opts) ->
-  # TODO: write this
+  [numDefinesChanged, newLine] = [0, ""]
+  while ([numDefinesChanged, newLine] = applyDefines line, opts)
   outStream.write line
 
 # this one does all the heavy lifting; given an input line, output stream, and
 # list of current defines, it will read in preprocessor directives and modify
 # opts as appropriate, finally outputting the correct output to outStream
+# we chose to leave the concatenation of backslash-newlines to each processLine
+# function so that they can give the appropriate lines and columns on each error
 processLine = (line, outStream, opts, ifStack, dirname) ->
   directive = line.match(directiveRegex)?[0]
-  restOfLine = line.replace directiveRegex, ""
-  switch directive
-    when "\#include" then insertInclude restOfLine, outStream, opts, dirname
-    when "\#define" then addDefine restOfLine, outStream, opts
-    when "\#undef" then removeDefine restOfLine, outStream, opts
-    when "\#error" then processError restOfLine, ifStack
-    # TODO: not sure if we do anything here
-    when "\#pragma" then processPragma restOfLine, outStream, opts
-    when "\#line" then processLineDirective restOfLine, outStream, opts
-    else
-      if directive?.match directiveRegex
-        # works on #if, #else, #endif, #ifdef, #ifndef, #elif
-        processIf directive, restOfLine, outStream, opts, ifStack, dirname
-      # just a normal source line
+  restOfLine = line.substr directive?.length
+  if ifStack.length isnt 0 and ifStack[ifStack.length - 1].isCurrentlyTrue
+    switch directive
+      when "\#include"
+      then insertInclude directive, restOfLine, outStream, opts, dirname
+      when "\#define"
+      then addDefine directive, restOfLine, outStream, opts
+      when "\#undef"
+      then removeDefine directive, restOfLine, outStream, opts
+      when "\#error"
+      then processError directive, restOfLine, ifStack
+      # TODO: not sure if we should do anything here
+      when "\#pragma"
+      then processPragma directive, restOfLine, outStream, opts
+      when "\#line"
+      then processLineDirective directive, restOfLine, outStream, opts
       else
-        # output if not within a #if or if within a true #if
-        if ifStack.length is 0 or ifStack[ifStack.length - 1].isCurrentlyTrue
-          processSourceLine line, outStream, opts
+        if directive?.match directiveRegex
+          # works on #if, #else, #endif, #ifdef, #ifndef, #elif
+          processIf directive, restOfLine, outStream, opts, ifStack, dirname
+        # just a normal source line
+        else
+         # output if not within a #if or if within a true #if
+         if ifStack.length is 0 or ifStack[ifStack.length - 1].isCurrentlyTrue
+           processSourceLine line, outStream, opts
+  else
+    if directive.match condRegex
+      processIf directive, restOfLine, outStream, opts, ifStack, dirname
+    else
+      # gotta keep those lines in place
+      opts.line += (directive + restOfLine?).match(backslashNewlineRegex).length
 
 # this function sets up input and processing streams and calls processLine to
 # write the appropriate output to outStream; exposed to the frontend
 #
 # opts: {
-#  defines: ['define1', 'define2=2'],
+#  defines: {define1: null, define2: 2},
 #  undefines: ['define3']
 #  include: ['/mnt/usr/include']
 # }
 analyzeLines = (file, opts) ->
   # initialize opts
   opts.line = 1
-  opts.filename = file
+  opts.file = file
   # get pwd of file
   dirname = path.dirname file
   # initialize streams

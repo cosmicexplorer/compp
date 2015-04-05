@@ -1,38 +1,32 @@
-OUT = compp.js
-
-COFFEE_OBJ = compp.js ConcatBackslashNewlinesStream.js analyzeLines.js
+DRIVER = compp.coffee
 
 TEST_OBJ = test/test1_out_cpp.c
 TEST_COMP_OBJ = test/test1_out_compp.c
 
 DEPS = node_modules
 
-COFFEE_FLAGS =
-
 .PHONY: all deps clean distclean check install
 
-%.js: %.coffee
-	coffee -o . -c $(COFFEE_FLAGS) $<
-
-%_out_cpp.c: %_in.c
-	cpp $< -P -o $@
-
-%_out_compp.c: %_in.c $(OUT)
-	node $(OUT) $< -o $@
-
-all: $(COFFEE_OBJ) $(DEPS)
+all: $(DEPS)
+	@../install_coffee_if_not.sh
 
 $(DEPS):
-	npm install
+	@echo "Installing required packages..."
+	@npm install
 
 clean:
-	@rm -f $(COFFEE_OBJ)
-	@rm -f $(TEST_OBJ)
+	@rm -f $(TEST_OBJ) $(TEST_COMP_OBJ)
 
 distclean: clean
 	@rm -rf $(DEPS)
 
-check: $(COFFEE_OBJ) $(DEPS) $(TEST_OBJ) $(TEST_COMP_OBJ)
+%_out_cpp.c: %_in.c
+	cpp $< -P -o $@
+
+%_out_compp.c: %_in.c $(DRIVER)
+	coffee $(DRIVER) $< -o $@
+
+check: all $(TEST_OBJ) $(TEST_COMP_OBJ)
 	diff $(TEST_OBJ) $(TEST_COMP_OBJ)
 
 install:
