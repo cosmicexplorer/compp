@@ -51,23 +51,26 @@ if 1 != opts.argv.length
 
 # FIXME: can't use -DDEFINE=3 or -UDEFINE like in cpp! -I kinda works though
 defines = {}
-for defStr in opts.options[addDefineStr]
-  hasFoundEqualsSign = false
-  for i in [0..(defStr.length - 1)]
-    # 'is' isn't working here, so use == instead
-    # not really sure why
-    if defStr.charAt(i) == "="
-      defines[defStr.substr(0, i)] = defStr.substr(i + 1)
-      hasFoundEqualsSign = true
-      break
-  if not hasFoundEqualsSign
-    defines[defStr] = ''
+if opts.options[addDefineStr]   # if any -D options exist
+  for defStr in opts.options[addDefineStr]
+    hasFoundEqualsSign = false
+    for i in [0..(defStr.length - 1)]
+      # 'is' isn't working here, so use == instead
+      # not really sure why
+      if defStr.charAt(i) == "="
+        defines[defStr.substr(0, i)] = defStr.substr(i + 1)
+        hasFoundEqualsSign = true
+        break
+    if not hasFoundEqualsSign
+      defines[defStr] = ''
 
-for undefStr in opts.options[removeDefineStr]
-  # use 'in' for arrays, 'of' for hashes
-  for defineStr of defines
-    if undefStr is defineStr
-      delete defines[defineStr]
+# if any -D options exist, and any -U options
+if opts.options[addDefineStr] and opts.options[removeDefineStr]
+  for undefStr in opts.options[removeDefineStr]
+    # use 'in' for arrays, 'of' for hashes
+    for defineStr of defines
+      if undefStr is defineStr
+        delete defines[defineStr]
 
 processedOpts =
   defines: defines

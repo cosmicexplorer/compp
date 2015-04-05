@@ -1,9 +1,15 @@
 #include <stdio.h>
 
-#define y (3)
-#define x (2 + y)
+#define C
+
+#define E (4)
+#undef E
+
+#define x (4 + y)
+#define y (2 * x)
 
 int main() {
-  int a = y + x;
+  int a = x + y + E;
+  int b = y + x;
   printf("a: %d\n", a);
 }

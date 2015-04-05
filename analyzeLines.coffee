@@ -13,11 +13,14 @@ backslashNewlineRegex = /\\\n/g
 stringInQuotes = /".*"/g
 # matches all preprocessor conditionals
 condRegex = /(if|else)/g
+notWhitespaceRegex = /[^\s]/g
+leadingWhitespaceRegex = /^\s+/g
+trailingWhitespaceRegex = /\s+$/g
 
 # utility functions
-# throw error at file and line
+# throw error at file, line, col
 throwError = (file, line, col, err) ->
-  console.error "#{file}:#{line}:#{col}: #{err}"
+  console.error "#{file}:#{line}:#{col}: error: #{err}"
   process.exit -1
 
 getBackslashNewlinesBeforeToken = (str, tok) ->
@@ -33,35 +36,60 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
   return num
 
 # apply all macro expansions to the given string
-applyDefines = (str, defines, curDefines) ->
-  for define in opts.defines
-    if curDefines?.indexOf define is -1
+applyDefines = (str, defines, macrosAlreadyExpanded) ->
+  for defineStr, defineVal of defines
+    if ((not macrosAlreadyExpanded) or
+       (macrosAlreadyExpanded.indexOf(defineStr) is -1)) and
+      # this regex construction is safe because valid tokens for #defines will
+      # only contain [a-zA-z0-9_], as shown above in tokenRegex
+      # if there were hyphens, backslashes, or other such weird things, we would
+      # have to perform the appropriate escaping
+      # TODO: see if there is a condition for this if statement that doesn't
+      # require regex matching, or is just generally cleaner
+       str.match(new RegExp("\\b#{defineStr}\\b", "g"))
       replaceString = ""
-      if opts.defines[define] isnt null
+      if defineVal isnt null
         definesToSend = []
-        if curDefines
-          definesToSend = curDefines
-        definesToSend.push define
-        replaceString = applyDefines opts.defines[define], opts, defines
-      line.replace(new RegExp("\b#{opt}\b", "g"), replaceString)
+        if macrosAlreadyExpanded
+          definesToSend = macrosAlreadyExpanded
+        definesToSend.push defineStr
+        # recursively expand macros, but only a little
+        replaceString = applyDefines defineVal, defines, definesToSend
+      str = str.replace(new RegExp("\\b#{defineStr}\\b", "g"), replaceString)
+  return str
 
 # process preprocessor line functions
 insertInclude = (directive, restOfLine, outStream, opts, dirname) ->
+  # TODO: write this (do this part last)
   outStream.write "#include#{restOfLine}"
-  # TODO: write this
-  # console.error "insertInclude not implemented!"
-  # process.exit -1
+  matches = restOfLine.match backslashNewlineRegex
+  opts.line += matches.length if matches
+  ++opts.line
 
 addDefine = (directive, restOfLine, outStream, opts) ->
-  outStream.write "#define#{restOfLine}"
-  # TODO: write this
-  # console.error "addDefine not implemented!"
-  # process.exit -1
+  # TODO: report better column numbers
+  defineToken = restOfLine.match(tokenRegex)?[0]
+  if not defineToken
+    throwError opts.file, opts.line, directive.length,
+    "No token given to \#define."
+  replaceToken = restOfLine.substr(
+    restOfLine.indexOf(defineToken) + defineToken.length).replace(
+    backslashNewlineRegex, "").replace(leadingWhitespaceRegex, "").replace(
+    trailingWhitespaceRegex, "")
+  opts.defines[defineToken] = replaceToken
+  matches = restOfLine.match backslashNewlineRegex
+  opts.line += matches.length if matches
+  ++opts.line
 
 removeDefine = (directive, restOfLine, outStream, opts) ->
-  # TODO: write this
-  console.error "removeDefine not implemented!"
-  process.exit -1
+  undefToken = restOfLine.match(tokenRegex)?[0]
+  if not undefToken
+    throwError opts.file, opts.line, directive.length,
+    "No token given to \#undef."
+  delete opts.defines[undefToken]
+  matches = restOfLine.match backslashNewlineRegex
+  opts.line += matches.length if matches
+  ++opts.line
 
 processError = (directive, restOfLine, ifStack) ->
   # TODO: write this
@@ -103,7 +131,11 @@ processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
   process.exit -1
 
 processSourceLine = (line, outStream, opts) ->
-  outStream.write(applyDefines line, opts.defines)
+  outLine = applyDefines(line, opts.defines)
+  outStream.write(outLine)
+  matches = line.match backslashNewlineRegex
+  opts.line += matches.length if matches
+  ++opts.line
 
 # this one does all the heavy lifting; given an input line, output stream, and
 # list of current defines, it will read in preprocessor directives and modify
@@ -111,9 +143,14 @@ processSourceLine = (line, outStream, opts) ->
 # we chose to leave the concatenation of backslash-newlines to each processLine
 # function so that they can give the appropriate lines and columns on each error
 processLine = (line, outStream, opts, ifStack, dirname) ->
+  # TODO: remove this line for debugging
   directive = line.match(directiveRegex)?[0]
-  restOfLine = line.substr directive?.length
-  if ifStack.length isnt 0 and ifStack[ifStack.length - 1].isCurrentlyTrue
+  restOfLine = ""
+  if not directive
+    restOfLine = line
+  else
+    restOfLine = line.substr directive.length
+  if ifStack.length is 0 or ifStack[ifStack.length - 1].isCurrentlyTrue
     switch directive
       when "\#include"
       then insertInclude directive, restOfLine, outStream, opts, dirname
@@ -134,15 +171,26 @@ processLine = (line, outStream, opts, ifStack, dirname) ->
           processIf directive, restOfLine, outStream, opts, ifStack, dirname
         # just a normal source line
         else
-         # output if not within a #if or if within a true #if
-         if ifStack.length is 0 or ifStack[ifStack.length - 1].isCurrentlyTrue
-           processSourceLine line, outStream, opts
+          # output if not within a #if or if within a true #if
+          processSourceLine line, outStream, opts
   else
-    if directive.match condRegex
+    if directive and directive.match condRegex
       processIf directive, restOfLine, outStream, opts, ifStack, dirname
     else
       # gotta keep those lines in place
-      opts.line += (directive + restOfLine?).match(backslashNewlineRegex).length
+      if directive and restOfLine
+        matches = (directive + restOfLine).match backslashNewlineRegex
+        if matches isnt null
+          opts.line += matches.length
+      else if directive
+        matches = directive.match backslashNewlineRegex
+        if matches isnt null
+          opts.line += matches.length
+      else
+        matches = restOfLine.match backslashNewlineRegex
+        if matches isnt null
+          opts.line += matches.length
+      ++opts.line
 
 # this function sets up input and processing streams and calls processLine to
 # write the appropriate output to outStream; exposed to the frontend
