@@ -35,10 +35,11 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
 # apply all macro expansions to the given string
 applyDefines = (line, opts, curDefine) ->
   for opt in opts.defines
-    replaceString = ""
-    if opts.defines[opt] isnt null
-      replaceString = applyDefines opts.defines[opt], opts, opt
-    line.replace(new RegExp("\b#{opt}\b", "g"), replaceString)
+    if opt isnt curDefine
+      replaceString = ""
+      if opts.defines[opt] isnt null
+        replaceString = applyDefines opts.defines[opt], opts, opt
+      line.replace(new RegExp("\b#{opt}\b", "g"), replaceString)
 
 # process preprocessor line functions
 insertInclude = (directive, restOfLine, outStream, opts, dirname) ->
