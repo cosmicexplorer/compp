@@ -149,7 +149,7 @@ processLine = (line, outStream, opts, ifStack, dirname) ->
 # e.g.,
 # opts: {
 #  defines: { define1: null, define2: 2 },
-#  include: ['/mnt/usr/include']
+#  includes: ['/mnt/usr/include']
 # }
 analyzeLines = (file, opts) ->
   # initialize opts
