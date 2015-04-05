@@ -39,8 +39,9 @@ if 1 != opts.argv.length
   console.error "Please input a single file for preprocessing."
   process.exit -1
 
-# TODO: sanitize defines, define values, undefines, and includes
-console.warn opts.defines
+# TODO: sanitize defines, define values, use undefines, and add includes
+console.warn opts.options
+process.exit -1
 
 # read from file
 fs.exists opts.argv[0], (exists) ->

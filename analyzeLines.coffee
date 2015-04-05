@@ -33,12 +33,16 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
   return num
 
 # apply all macro expansions to the given string
-applyDefines = (line, opts, curDefine) ->
-  for opt in opts.defines
-    if opt isnt curDefine
+applyDefines = (str, defines, curDefines) ->
+  for define in opts.defines
+    if curDefines?.indexOf define is -1
       replaceString = ""
-      if opts.defines[opt] isnt null
-        replaceString = applyDefines opts.defines[opt], opts, opt
+      if opts.defines[define] isnt null
+        definesToSend = []
+        if curDefines
+          definesToSend = curDefines
+        definesToSend.push define
+        replaceString = applyDefines opts.defines[define], opts, defines
       line.replace(new RegExp("\b#{opt}\b", "g"), replaceString)
 
 # process preprocessor line functions
@@ -99,9 +103,7 @@ processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
   process.exit -1
 
 processSourceLine = (line, outStream, opts) ->
-  [numDefinesChanged, newLine] = [0, ""]
-  while ([numDefinesChanged, newLine] = applyDefines line, opts)
-  outStream.write line
+  outStream.write(applyDefines line, opts.defines)
 
 # this one does all the heavy lifting; given an input line, output stream, and
 # list of current defines, it will read in preprocessor directives and modify
@@ -144,10 +146,9 @@ processLine = (line, outStream, opts, ifStack, dirname) ->
 
 # this function sets up input and processing streams and calls processLine to
 # write the appropriate output to outStream; exposed to the frontend
-#
+# e.g.,
 # opts: {
-#  defines: {define1: null, define2: 2},
-#  undefines: ['define3']
+#  defines: { define1: null, define2: 2 },
 #  include: ['/mnt/usr/include']
 # }
 analyzeLines = (file, opts) ->
