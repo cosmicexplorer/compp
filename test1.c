@@ -1,9 +1,14 @@
 #include <stdio.h>
 
 #define C
-
-#define E (4)
-#undef E
+/* yay */
+/* yeah
+ * woo
+ */
+// nice
+#define E /* lol \
+          */ (4)
+//#undef E
 
 #define x (4 + y)
 #define y (2 * x)

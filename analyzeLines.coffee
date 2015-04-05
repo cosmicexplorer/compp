@@ -16,6 +16,13 @@ condRegex = /(if|else)/g
 notWhitespaceRegex = /[^\s]/g
 leadingWhitespaceRegex = /^\s+/g
 trailingWhitespaceRegex = /\s+$/g
+# matches //-style comments until backslash-newline
+C99CommentBackslashRegex = /\/\/.*\\\n/g
+# matches //-style comments until end of line
+C99CommentNoBackslashRegex = /\/\/.*$/g
+# matches beginning of /*-style comments
+slashStarBeginRegex = /\/\*/g
+slashStarEndRegex = /\*\/g
 
 # utility functions
 # throw error at file, line, col
@@ -142,8 +149,12 @@ processSourceLine = (line, outStream, opts) ->
 # opts as appropriate, finally outputting the correct output to outStream
 # we chose to leave the concatenation of backslash-newlines to each processLine
 # function so that they can give the appropriate lines and columns on each error
-processLine = (line, outStream, opts, ifStack, dirname) ->
-  # TODO: remove this line for debugging
+processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
+  # FIXME: give better line/column numbers for comments
+  # TODO: add /**/-style comments
+  # respect C99 //-style comments
+  line = line.replace C99CommentBackslashRegex, ""
+  line = line.replace C99CommentNoBackslashRegex, ""
   directive = line.match(directiveRegex)?[0]
   restOfLine = ""
   if not directive
@@ -220,11 +231,13 @@ analyzeLines = (file, opts) ->
   # hasBeenTrue is true so we know whether to process "else" statements
   # isCurrentlyTrue tells us whether we're processing the current branch of if
   ifStack = []
+  # whether currently in comment
+  inComment = false
   fileStream.on 'error', (err) ->
     console.error "Error in reading input file: #{file}."
     throw err
   lineStream.on 'line', (line) ->
-    processLine line, outStream, opts, ifStack, dirname
+    processLine line, outStream, opts, ifStack, inComment, dirname
   return outStream
 
 module.exports = analyzeLines
