@@ -19,12 +19,20 @@
 #define F (4 + F)
 #define x (4 + y)
 #define y (2 * x)
+// only one interpretation is available for each token at a time: object-like or
+// function-like; however, if the token is called as a function when it is an
+// object, or an object when it is a function, the macro goes unexpanded
+#define CA(x) #x
+//#define CA "asdf"
 
-#ifndef ABC
+char * a = CA;
+
+#ifdef CA
 int main() {
   int a = x + y + E + A);
   int b = y + x + F;
   printf("a: %d\n", a);
+  printf(CA(a) "\n");
 }
 #else
 int main() {
