@@ -44,6 +44,7 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
 
 # apply all macro expansions to the given string
 applyDefines = (str, defines, macrosAlreadyExpanded) ->
+  # FIXME: allow for function-style macros
   for defineStr, defineVal of defines
     if ((not macrosAlreadyExpanded) or
        (macrosAlreadyExpanded.indexOf(defineStr) is -1)) and
@@ -152,6 +153,10 @@ processSourceLine = (line, outStream, opts) ->
 processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
   # FIXME: give better line/column numbers for comments
   # TODO: add /**/-style comments
+  # just replace all backslash-newlines within /*-style comments with literal
+  # backslash-newlines, minus comments, and let each command handle it
+  # appropriately; if there is any text before the /*, just leave it. if it's
+  # after the */, just leave it past the last backslash-newline
   # respect C99 //-style comments
   line = line.replace C99CommentBackslashRegex, ""
   line = line.replace C99CommentNoBackslashRegex, ""
