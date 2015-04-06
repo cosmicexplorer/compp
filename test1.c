@@ -10,11 +10,13 @@
           */ (4)
 //#undef E
 
+#define A (2 + 3
+
 #define x (4 + y)
 #define y (2 * x)
 
 int main() {
-  int a = x + y + E;
+  int a = x + y + E + A);
   int b = y + x;
   printf("a: %d\n", a);
 }
