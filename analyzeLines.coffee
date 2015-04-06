@@ -158,6 +158,7 @@ processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
   # appropriately; if there is any text before the /*, just leave it. if it's
   # after the */, just leave it past the last backslash-newline
   # respect C99 //-style comments
+  # FIXME: below doesn't increment opts.line appropriately for //-comments
   line = line.replace C99CommentBackslashRegex, ""
   line = line.replace C99CommentNoBackslashRegex, ""
   directive = line.match(directiveRegex)?[0]
