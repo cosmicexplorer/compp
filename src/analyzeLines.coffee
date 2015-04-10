@@ -98,15 +98,15 @@ removeDefine = (directive, restOfLine, outStream, opts) ->
   opts.line += matches.length if matches
   ++opts.line
 
-processError = (directive, restOfLine, ifStack) ->
-  # TODO: write this
-  console.error "processError not implemented!"
-  process.exit -1
+processError = (directive, restOfLine, opts) ->
+  # the literal 2 here is verbatim from gnu cpp
+  throwError opts.file, opts.line, 2, restOfLine.replace(
+    leadingWhitespaceRegex, "").replace(trailingWhitespaceRegex, "")
 
 processPragma = (directive, restOfLine, outStream, opts) ->
-  # TODO: write this
-  console.error "processPragma not implemented!"
-  process.exit -1
+  # we don't do anything here, but it's left here for clarity
+  ++opts.line
+  opts.line += restOfLine.match(backslashNewlineRegex)?.length
 
 processLineDirective = (directive, restOfLine, outStream, opts) ->
   # TODO: report better column numbers
@@ -175,7 +175,7 @@ processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
       when "\#undef"
       then removeDefine directive, restOfLine, outStream, opts
       when "\#error"
-      then processError directive, restOfLine, ifStack
+      then processError directive, restOfLine, opts
       # TODO: not sure if we should do anything here
       when "\#pragma"
       then processPragma directive, restOfLine, outStream, opts
