@@ -2,69 +2,66 @@
 # calls to analyzeLines to do all the heavy lifting
 
 # accepts -D, -U, -I, -h, -v, and -o arguments
-# for -D/U/I arguments, put a space in between the switch, and put the value in
-# quotes, e.g.,
-# -D "DEFINE=3"
-# **NOT** -DDEFINE=3
-# this is an abberation from gnu cpp which will be rectified after the internals
-# are completed
 # note: undefs take precedence over defines, and later defines take precedence
 # over earlier defines ("earlier" -> earlier in argument list (closer to left))
+
+# process.argv[0] will be "node", and process.argv[1] will be the compiled
+# version of this script, due to the way these are compiled to js before
+# execution, and the way this is called from "compp" (an auxiliary script in the
+# repo's base directory). this is done because invoking the script through the
+# coffeescript interpreter "coffee compp.coffee ..." automatically splits
+# process.argv according to the argument parsing done in the coffeescript
+# frontend, making the traditional "-DDEFINE" cpp syntax fail. the only
+# resolution to this issue (calling this with "/usr/bin/env coffee --") doesn't
+# actually work. we will explicitly shift it and change to "coffee" here to
+# avoid confusion.
+process.argv.shift()
+process.argv[0] = "coffee"
 
 # node standard modules
 fs = require 'fs'
 path = require 'path'
 # local modules
-analyzeLines = require './analyzeLines'
+comppGetOpt = require "#{__dirname}/../obj/compp-getopt"
+analyzeLines = require "#{__dirname}/../obj/analyzeLines"
 
-addDefineStr = 'add-define'
-removeDefineStr = 'remove-define'
-includeStr = 'include-dir'
-outputStr = 'output'
+# parse and sanitize inputs
+opts = comppGetOpt.parseArgsFromArr process.argv
 
-getOpt = new (require('node-getopt'))([
-  # -D HELLO for #define HELLO,
-  # -D HELLO=3 for #define HELLO 3
-  ['D', "#{addDefineStr}=ARG+", 'Add cpp define.'],
-  # -U HELLO for #undef HELLO
-  ['U', "#{removeDefineStr}=ARG+", 'Remove cpp define.'],
-  # -I dir adds to include dirs
-  ['I', "#{includeStr}=ARG+", 'Include directory for header files.'],
-  # -o file
-  ['o', "#{outputStr}=ARG", 'Define file to output to.'],
-  ['h', 'help', 'Display this help.'],
-  ['v', 'version', 'Display version number.']])
+if opts.help
+  comppGetOpt.displayHelp()
+  process.exit 0
+if opts.version
+  comppGetOpt.displayVersion()
+  process.exit 0
 
-getOpt.setHelp(
-  "Usage: compp [OPTION..] FILE\n\n" +
-  "[[OPTIONS]]\n"
-)
-
-# this should error out appropriately if any incorrect options are given
-opts = getOpt.bindHelp().parseSystem()
-
-if 1 != opts.argv.length
-  console.error "Please input a single file for preprocessing."
+if not (0 < opts.argv.length <= 2)
+  console.error "Please input at least one file for preprocessing."
   process.exit -1
 
-# FIXME: can't use -DDEFINE=3 or -UDEFINE like in cpp! -I kinda works though
+if opts.output.length > 1 or (opts.output.length is 1 and opts.argv.length is 2)
+  console.error "Please input at most one file for output."
+  process.exit -1
+
+if opts.output.length is 0 and opts.argv.length is 2
+  opts.output = [opts.argv[1]]
+
 defines = {}
-if opts.options[addDefineStr]   # if any -D options exist
-  for defStr in opts.options[addDefineStr]
-    hasFoundEqualsSign = false
-    for i in [0..(defStr.length - 1)]
-      # 'is' isn't working here, so use == instead
-      # not really sure why
-      if defStr.charAt(i) == "="
-        defines[defStr.substr(0, i)] = defStr.substr(i + 1)
-        hasFoundEqualsSign = true
-        break
-    if not hasFoundEqualsSign
-      defines[defStr] = ''
+for defStr in opts.defines
+  hasFoundEqualsSign = false
+  for i in [0..(defStr.length - 1)]
+  # 'is' isn't working here, so use == instead
+  # not really sure why
+    if defStr.charAt(i) == "="
+      defines[defStr.substr(0, i)] = defStr.substr(i + 1)
+      hasFoundEqualsSign = true
+      break
+  if not hasFoundEqualsSign
+    defines[defStr] = ''
 
 # if any -D options exist, and any -U options
-if opts.options[addDefineStr] and opts.options[removeDefineStr]
-  for undefStr in opts.options[removeDefineStr]
+if opts.defines and opts.undefs
+  for undefStr in opts.undefs
     # use 'in' for arrays, 'of' for hashes
     for defineStr of defines
       if undefStr is defineStr
@@ -72,36 +69,33 @@ if opts.options[addDefineStr] and opts.options[removeDefineStr]
 
 processedOpts =
   defines: defines
-  includes: opts.options[includeStr]
+  includes: opts.includes
 
 # read from file
-fs.exists opts.argv[0], (exists) ->
-  if not exists
-    console.error "Input file not found."
-    process.exit -1
+processedStream = analyzeLines opts.argv[0],
+  fs.createReadStream(opts.argv[0]),
+  processedOpts
 
-  processedStream = analyzeLines opts.argv[0],
-        fs.createReadStream(opts.argv[0]),
-        processedOpts
-
-  if opts.options[outputStr]
-    fs.exists path.dirname(opts.options[outputStr]), (exists) ->
-      if not exists
-        console.error "Directory for output file not found."
+if opts.output[0]
+  fs.stat path.dirname(opts.output[0]), (err, stats) ->
+    if err and err.code is 'ENOENT'
+      console.error "Directory for output file not found."
+      process.exit -1
+    else if err
+      throw err
+    fs.stat opts.output[0], (err, stats) ->
+    # don't care if file doesn't exist since we're writing to it
+      if err and err.code isnt 'ENOENT'
+        throw err
+      if not err and stats.isDirectory()
+        console.error "Output file should be file, not directory."
         process.exit -1
-      fs.stat opts.options[outputStr], (err, stats) ->
-        # don't care if file doesn't exist since we're writing to it
-        if err and err.code isnt 'ENOENT'
+      else
+        outStream = fs.createWriteStream(opts.output[0])
+        processedStream.pipe outStream
+        outStream.on 'error', (err) ->
+          console.error "Error in writing to output file: " +
+            "#{opts.output[0]}"
           throw err
-        if not err and stats.isDirectory()
-          console.error "Output file should be file, not directory."
-          process.exit -1
-        else
-          outStream = fs.createWriteStream(opts.options[outputStr])
-          processedStream.pipe outStream
-          outStream.on 'error', (err) ->
-            console.error "Error in writing to output file: " +
-              "#{opts.options[outputStr]}"
-            throw err
-  else
-    processedStream.pipe process.stdout
+else
+  processedStream.pipe process.stdout

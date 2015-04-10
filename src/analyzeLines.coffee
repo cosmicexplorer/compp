@@ -228,7 +228,6 @@ analyzeLines = (file, fileStream, opts) ->
   # stack of #if directives
   # each element is laid out as:
   # {
-  #   type: "if",
   #   hasBeenTrue: true
   #   isCurrentlyTrue: false
   # }

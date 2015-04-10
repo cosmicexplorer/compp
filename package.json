@@ -9,7 +9,7 @@
     "test": "make check"
   },
   "bin": {
-    "compp": "./compp"
+    "compp": "src/compp.coffee"
   },
   "main": "obj/analyzeLines.js",
   "repository": {
@@ -22,9 +22,6 @@
     "parse",
     "compost"
   ],
-  "dependencies": {
-    "node-getopt": "0.2.x"
-  },
   "devDependencies": {
     "coffee-script": "1.9.x"
   }

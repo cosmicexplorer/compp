@@ -1,27 +1,69 @@
-# my own version of getopt which support typical cpp syntax
-# WORKING ON THIS LATER
+# node standard modules
+fs = require 'fs'
 
-displayHelp = (optionMap) ->
-  outStr =
-    "Usage: compp [OPTION...] FILE\n\n"
-  for opt in optionArr
-    outStr += "\t-#{opt[0]}, --#{opt[1]},\t#{opt[2]}\n"
+defineArgRegex = /^\-D/g
+undefArgRegex = /^\-U/g
+includeArgRegex = /^\-I/g
+outputArgRegex = /^\-o/g
+helpArgRegex = /^\-h/g
+versionArgRegex = /^\-v/g
 
-parseArgsFromArr = (argArr, optionMap) ->
+displayHelp = ->
+  console.log '''
+    Usage: compp [-Dmacro[=defn]...] [-Umacro]
+                 [-Idir] [-o outfile]
+                 infile [outfile]
+  '''
+
+displayVersion = ->
+  fs.readFile "#{__dirname}/../package.json", (err, file) ->
+    throw err if err
+    console.log "compp version #{JSON.parse(file.toString()).version}"
+
+parseArgsFromArr = (argArr) ->
   exec = argArr.shift()
   help = false
   version = false
-  # for arg in argArr
-  #   if
-
-parseArgv = (argv, optionMap) ->
-  argv_zero = argv.match(/^.*\s/g)[0]
-  argArr = argv.match /\s+.*\s+/g
-  argArr.unshift argv_zero
+  defines = []
+  undefs = []
+  includes = []
+  output = []
+  # list of arguments without minuses
+  argv = []
+  prevWasOutputFlag = false
   for arg in argArr
-    arg.replace /\s/g, ""
-  parseArgsFromArr argArr, optionMap
+    if prevWasOutputFlag
+      output.push arg
+      prevWasOutputFlag = false
+    else if arg.match defineArgRegex
+      defines.push arg.replace defineArgRegex, ""
+    else if arg.match undefArgRegex
+      undefs.push arg.replace undefArgRegex, ""
+    else if arg.match includeArgRegex
+      includes.push arg.replace includeArgRegex, ""
+    else if arg.match outputArgRegex
+      if (arg.replace outputArgRegex, "") is ""
+        prevWasOutputFlag = true
+      else
+        output.push arg.replace outputArgRegex, ""
+    else if arg.match helpArgRegex
+      help = true
+    else if arg.match versionArgRegex
+      version = true
+    else
+      argv.push arg
+  return {
+    exec: exec,
+    argv: argv,
+    help: help,
+    version: version
+    defines: defines
+    undefs: undefs
+    includes: includes
+    output: output
+  }
 
 module.exports =
   displayHelp: displayHelp
-  parseArgv: parseArgv
+  displayVersion: displayVersion
+  parseArgsFromArr: parseArgsFromArr
