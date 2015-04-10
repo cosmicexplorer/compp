@@ -1,5 +1,4 @@
 # native modules
-fs = require 'fs'
 path = require 'path'
 stream = require 'stream'
 # local modules
@@ -22,7 +21,7 @@ C99CommentBackslashRegex = /\/\/.*\\\n/g
 C99CommentNoBackslashRegex = /\/\/.*$/g
 # matches beginning of /*-style comments
 slashStarBeginRegex = /\/\*/g
-slashStarEndRegex = /\*\/g
+slashStarEndRegex = /\*\//g
 
 # utility functions
 # throw error at file, line, col
@@ -216,14 +215,13 @@ processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
 #  defines: { define1: null, define2: 2 },
 #  includes: ['/mnt/usr/include']
 # }
-analyzeLines = (file, opts) ->
+analyzeLines = (file, fileStream, opts) ->
   # initialize opts
   opts.line = 1
   opts.file = file
   # get pwd of file
   dirname = path.dirname file
   # initialize streams
-  fileStream = fs.createReadStream file
   formatStream = new ConcatBackslashNewlinesStream
   lineStream = fileStream.pipe(formatStream)
   outStream = new stream.PassThrough()

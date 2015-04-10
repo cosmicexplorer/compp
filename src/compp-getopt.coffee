@@ -11,8 +11,8 @@ parseArgsFromArr = (argArr, optionMap) ->
   exec = argArr.shift()
   help = false
   version = false
-  for arg in argArr
-    if
+  # for arg in argArr
+  #   if
 
 parseArgv = (argv, optionMap) ->
   argv_zero = argv.match(/^.*\s/g)[0]

@@ -10,9 +10,9 @@
           */ (4)
 //#undef E
 
-#pragma \
-  VERSION \
-  "Software Product, Version 12345.A.01.05"
+/* #pragma \ */
+/*   VERSION \ */
+/*   "Software Product, Version 12345.A.01.05" */
 
 #define A (2 + 3
 
@@ -27,15 +27,15 @@
 
 char * a = CA;
 
-#ifdef CA
+/* #ifdef CA */
 int main() {
   int a = x + y + E + A);
   int b = y + x + F;
   printf("a: %d\n", a);
   printf(CA(a) "\n");
 }
-#else
+/* #else */
 int main() {
   printf("hello\n");
 }
-#endif
+/* #endif */

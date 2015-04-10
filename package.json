@@ -4,10 +4,28 @@
   "description": "A simple C preprocessor.",
   "license": "GPL v3",
   "author": "Danny McClanahan <danieldmcclanahan@gmail.com>",
+  "scripts": {
+    "prepublish": "make",
+    "test": "make check"
+  },
+  "bin": {
+    "compp": "./compp"
+  },
+  "main": "obj/analyzeLines.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/cosmicexplorer/compp.git"
+  },
+  "keywords": [
+    "compile",
+    "preprocess",
+    "parse",
+    "compost"
+  ],
   "dependencies": {
-    "node-getopt": "^0.2.3"
+    "node-getopt": "0.2.x"
   },
   "devDependencies": {
-    "coffee-script": "^1.9.1"
+    "coffee-script": "1.9.x"
   }
 }
