@@ -6,7 +6,9 @@ int /* hey \
                      */;
 int c = 2;
 
-#define CONST_VAR 42
+#define \
+  CONST_VAR \
+  42
 
 #error hello
 
