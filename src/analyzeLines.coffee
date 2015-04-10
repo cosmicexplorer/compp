@@ -18,13 +18,13 @@ trailingWhitespaceRegex = /\s+$/g
 # matches //-style comments until backslash-newline
 C99CommentBackslashRegex = /\/\/.*\\\n/g
 # matches //-style comments until end of line
-C99CommentNoBackslashRegex = /\/\/.*$/g
+C99CommentNoBackslashRegex = /\/\/.*/g
 # matches beginning of /*-style comments
 slashStarBeginRegex = /\/\*/g
 slashStarEndRegex = /\*\//g
 
 # utility functions
-# throw error at file, line, col
+# throw error at file, line, col and exit "gracefully"
 throwError = (file, line, col, err) ->
   console.error "#{file}:#{line}:#{col}: error: #{err}"
   process.exit -1
@@ -105,6 +105,7 @@ processError = (directive, restOfLine, opts) ->
 
 processPragma = (directive, restOfLine, outStream, opts) ->
   # we don't do anything here, but it's left here for clarity
+  outStream.write "#{directive}#{restOfLine}"
   ++opts.line
   opts.line += restOfLine.match(backslashNewlineRegex)?.length
 
@@ -138,11 +139,39 @@ processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
   process.exit -1
 
 processSourceLine = (line, outStream, opts) ->
-  outLine = applyDefines(line, opts.defines)
-  outStream.write(outLine)
-  matches = line.match backslashNewlineRegex
-  opts.line += matches.length if matches
+  outLine = applyDefines line, opts.defines
+  outStream.write outLine
+  opts.line += (line.match backslashNewlineRegex)?.length
   ++opts.line
+
+processComments = (line, opts) ->
+  # respect the good ol' /**/-style comments
+  newLine = []
+  prevChar = ""
+  for c in line
+    newLine.push c if not opts.isInComment
+    if not opts.isInComment
+      if c is "\n" and prevChar is "\\"
+        # keep the \\\n in there! why? figure it out!!!
+        newLine.push "\\"
+        newLine.push "\n"
+      if c is "*" and prevChar is "/"
+        opts.isInComment = true
+        # remove /*
+        newLine.pop()
+        newLine.pop()
+    else
+      if c in "/" and prevChar is "*"
+        opts.isInComment = false
+    prevChar = c
+
+  newLine = newLine.join ""
+
+  # respect C99 //-style comments
+  # MUST run backslash regex first for correct results
+  newLine = newLine.replace C99CommentBackslashRegex, "\\\n"
+  newLine = newLine.replace C99CommentNoBackslashRegex, ""
+  return newLine
 
 # this one does all the heavy lifting; given an input line, output stream, and
 # list of current defines, it will read in preprocessor directives and modify
@@ -150,16 +179,15 @@ processSourceLine = (line, outStream, opts) ->
 # we chose to leave the concatenation of backslash-newlines to each processLine
 # function so that they can give the appropriate lines and columns on each error
 processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
-  # FIXME: give better line/column numbers for comments
   # TODO: add /**/-style comments
   # just replace all backslash-newlines within /*-style comments with literal
   # backslash-newlines, minus comments, and let each command handle it
   # appropriately; if there is any text before the /*, just leave it. if it's
   # after the */, just leave it past the last backslash-newline
-  # respect C99 //-style comments
-  # FIXME: below doesn't increment opts.line appropriately for //-comments
-  line = line.replace C99CommentBackslashRegex, ""
-  line = line.replace C99CommentNoBackslashRegex, ""
+
+  # clobbers opts.isInComment
+  line = processComments line, opts
+
   directive = line.match(directiveRegex)?[0]
   restOfLine = ""
   if not directive
@@ -219,6 +247,7 @@ analyzeLines = (file, fileStream, opts) ->
   # initialize opts
   opts.line = 1
   opts.file = file
+  opts.isInComment = false
   # get pwd of file
   dirname = path.dirname file
   # initialize streams

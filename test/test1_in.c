@@ -1,5 +1,11 @@
 #include <stdio.h>
 
+int b = 3;
+int /* hey \
+     */ d = /* */ 3 /*   \
+                     */;
+int c = 2;
+
 #define CONST_VAR 42
 
 int main() {
