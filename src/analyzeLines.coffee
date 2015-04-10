@@ -25,8 +25,13 @@ slashStarEndRegex = /\*\//g
 
 # utility functions
 # throw error at file, line, col and exit "gracefully"
-throwError = (file, line, col, err) ->
-  console.error "#{file}:#{line}:#{col}: error: #{err}"
+throwError = (file, line, line_num, col, err) ->
+  console.error "#{file}:#{line_num}:#{col}: error: #{err}"
+  process.stderr.write line
+  # add the cute little carat showing you where your problem is
+  for i in [1..(col)]
+    process.stderr.write " "
+  process.stderr.write "^\n"
   process.exit -1
 
 getBackslashNewlinesBeforeToken = (str, tok) ->
@@ -61,7 +66,7 @@ applyDefines = (str, defines, macrosAlreadyExpanded) ->
           definesToSend = macrosAlreadyExpanded
         definesToSend.push defineStr
         # recursively expand macros, but only a little
-        replaceString = applyDefines defineVal, defines, definesToSend
+        replaceString = applyDefines defineValj, defines, definesToSend
       str = str.replace(new RegExp("\\b#{defineStr}\\b", "g"), replaceString)
   return str
 
@@ -73,24 +78,34 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname) ->
   opts.line += matches.length if matches
   ++opts.line
 
+addFunctionMacro = (defineToken, lineAfterToken, opts) ->
+  # TODO: write this
+  console.error "addFunctionMacro not implemented yet"
+  process.exit -1
+
+addObjectMacro = (defineToken, lineAfterToken, opts) ->
+  replaceToken = lineAfterToken.replace(backslashNewlineRegex, "").replace(
+    leadingWhitespaceRegex, "").replace(trailingWhitespaceRegex, "")
+  opts.defines[defineToken] = replaceToken
+
 addDefine = (directive, restOfLine, outStream, opts) ->
-  # TODO: report better column numbers
   defineToken = restOfLine.match(tokenRegex)?[0]
   if not defineToken
-    throwError opts.file, opts.line, directive.length,
+    throwError opts.file, "#{directive}#{restOfLine}", opts.line, 2,
     "No token given to \#define."
-  replaceToken = restOfLine.substr(
-    restOfLine.indexOf(defineToken) + defineToken.length).replace(
-    backslashNewlineRegex, "").replace(leadingWhitespaceRegex, "").replace(
-    trailingWhitespaceRegex, "")
-  opts.defines[defineToken] = replaceToken
+  lineAfterToken = restOfLine.substr(
+    restOfLine.indexOf(defineToken) + defineToken.length)
+  if lineAfterToken.charAt(0) is "("
+    addFunctionMacro defineToken, lineAfterToken, opts
+  else
+    addObjectMacro defineToken, lineAfterToken, opts
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
   ++opts.line
 
 removeDefine = (directive, restOfLine, outStream, opts) ->
   undefToken = restOfLine.match(tokenRegex)?[0]
-  if not undefToken
+  if undefToken
     throwError opts.file, opts.line, directive.length,
     "No token given to \#undef."
   delete opts.defines[undefToken]
@@ -100,8 +115,9 @@ removeDefine = (directive, restOfLine, outStream, opts) ->
 
 processError = (directive, restOfLine, opts) ->
   # the literal 2 here is verbatim from gnu cpp
-  throwError opts.file, opts.line, 2, restOfLine.replace(
-    leadingWhitespaceRegex, "").replace(trailingWhitespaceRegex, "")
+  throwError opts.file, "#{directive}#{restOfLine}", opts.line, 2,
+    restOfLine.replace(leadingWhitespaceRegex, "")
+    .replace(trailingWhitespaceRegex, "")
 
 processPragma = (directive, restOfLine, outStream, opts) ->
   # we don't do anything here, but it's left here for clarity
@@ -111,14 +127,12 @@ processPragma = (directive, restOfLine, outStream, opts) ->
   ++opts.line
 
 processLineDirective = (directive, restOfLine, outStream, opts) ->
-  # TODO: report better column numbers
-  # TODO: show line of interest, with carat pointing up at column
   toLine = restOfLine.match(tokenRegex)?[0] # get first token
   backslashesBeforeToLine =
     getBackslashNewlinesBeforeToken restOfLine, toLine
   if not toLine                             # if line just "#line \n"
-    throwError opts.file, opts.line, directive.length,
-    "No line number given in #{directive} directive."
+    throwError opts.file, "#{directive}#{restOfLine}", opts.line,
+    directive.length, "No line number given in #{directive} directive."
   if not toLine.match numberRegex
     throwError opts.file, opts.line + backslashesBeforeToLine, directive.length,
     "Invalid line number given in #{directive} directive."
