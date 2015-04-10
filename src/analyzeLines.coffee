@@ -106,8 +106,9 @@ processError = (directive, restOfLine, opts) ->
 processPragma = (directive, restOfLine, outStream, opts) ->
   # we don't do anything here, but it's left here for clarity
   outStream.write "#{directive}#{restOfLine}"
+  matches = restOfLine.match backslashNewlineRegex
+  opts.line += matches.length if matches
   ++opts.line
-  opts.line += restOfLine.match(backslashNewlineRegex)?.length
 
 processLineDirective = (directive, restOfLine, outStream, opts) ->
   # TODO: report better column numbers
@@ -141,7 +142,8 @@ processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
 processSourceLine = (line, outStream, opts) ->
   outLine = applyDefines line, opts.defines
   outStream.write outLine
-  opts.line += (line.match backslashNewlineRegex)?.length
+  matches = line.match backslashNewlineRegex
+  opts.line += matches.length if matches
   ++opts.line
 
 processComments = (line, opts) ->
@@ -151,10 +153,6 @@ processComments = (line, opts) ->
   for c in line
     newLine.push c if not opts.isInComment
     if not opts.isInComment
-      if c is "\n" and prevChar is "\\"
-        # keep the \\\n in there! why? figure it out!!!
-        newLine.push "\\"
-        newLine.push "\n"
       if c is "*" and prevChar is "/"
         opts.isInComment = true
         # remove /*
@@ -163,6 +161,11 @@ processComments = (line, opts) ->
     else
       if c in "/" and prevChar is "*"
         opts.isInComment = false
+      if c is "\n" and prevChar is "\\"
+        # keep the \\\n in there! why? figure it out!!!
+        newLine.push "\\"
+        newLine.push "\n"
+
     prevChar = c
 
   newLine = newLine.join ""
@@ -179,13 +182,7 @@ processComments = (line, opts) ->
 # we chose to leave the concatenation of backslash-newlines to each processLine
 # function so that they can give the appropriate lines and columns on each error
 processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
-  # TODO: add /**/-style comments
-  # just replace all backslash-newlines within /*-style comments with literal
-  # backslash-newlines, minus comments, and let each command handle it
-  # appropriately; if there is any text before the /*, just leave it. if it's
-  # after the */, just leave it past the last backslash-newline
-
-  # clobbers opts.isInComment
+  # clobbers opts.isInComment (in a good way)
   line = processComments line, opts
 
   directive = line.match(directiveRegex)?[0]
