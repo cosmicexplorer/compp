@@ -49,7 +49,7 @@ if opts.output.length is 0 and opts.argv.length is 2
 defines = {}
 for defStr in opts.defines
   hasFoundEqualsSign = false
-  for i in [0..(defStr.length - 1)]
+  for i in [0..(defStr.length - 1)] by 1
   # 'is' isn't working here, so use == instead
   # not really sure why
     if defStr.charAt(i) == "="

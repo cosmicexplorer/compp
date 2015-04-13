@@ -33,7 +33,7 @@ throwError = (file, line, line_num, col, err) ->
   console.error "#{file}:#{line_num}:#{col}: error: #{err}"
   process.stderr.write line
   # add the cute little carat showing you where your problem is
-  for i in [1..(col)]
+  for i in [1..(col)] by 1
     process.stderr.write " "
   process.stderr.write "^\n"
   process.exit -1
@@ -44,7 +44,7 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
     return 0
   prevChar = ""
   num = 0
-  for i in [0..(ind-1)]
+  for i in [0..(ind-1)] by 1
     if str.charAt(i) is "\n" and prevChar is "\\"
       ++num
     prevChar = str.charAt(i)
