@@ -53,11 +53,15 @@ for defStr in opts.defines
   # 'is' isn't working here, so use == instead
   # not really sure why
     if defStr.charAt(i) == "="
-      defines[defStr.substr(0, i)] = defStr.substr(i + 1)
+      defines[defStr.substr(0, i)] =
+        text: defStr.substr(i + 1)
+        type: "object"
       hasFoundEqualsSign = true
       break
   if not hasFoundEqualsSign
-    defines[defStr] = ''
+    defines[defStr] =
+      text: ""
+      type: "object"
 
 # if any -D options exist, and any -U options
 if opts.defines and opts.undefs

@@ -23,7 +23,7 @@ C99CommentNoBackslashRegex = /\/\/.*/g
 slashStarBeginRegex = /\/\*/g
 slashStarEndRegex = /\*\//g
 # matches within parentheses
-parentheticalExprRegex = /\(.+\)/g
+parentheticalExprRegex = /\([^\)]*\)/g
 parenCommaWhitespaceRegex = /[\(\),\s]/g
 argumentRegex = /[^,]+[,\)]/g
 
@@ -50,29 +50,68 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
     prevChar = str.charAt(i)
   return num
 
+applyFunctionDefine =
+(fnDefn, args, token, str, defines, macrosExpanded, opts) ->
+  tokenIndex = str.indexOf token
+  if args.length isnt fnDefn.args.length
+    # TODO: better column numbering
+    throwError opts.file, str, opts.line, tokenIndex,
+      "Incorrect number of arguments passed to function-like macro: should " +
+      "be #{fnDefn.args.length}, not #{args.length}"
+  curStr = fnDefn.text
+  for i in [0..(args.length - 1)] by 1
+    # arguments to function-like macros take precedence over previous defines,
+    # but those arguments might themselves be macros
+    curStr = curStr.replace(new RegExp("\\b#{fnDefn.args[i]}\\b"),
+      applyDefines(args[i], defines, opts, macrosExpanded))
+  return applyDefines((str.substr(0, tokenIndex) +
+    curStr +
+    str.substr(tokenIndex + token.length)), defines, opts, macrosExpanded)
+
 # apply all macro expansions to the given string
 # guaranteed that all macro arguments will not expand to
-applyDefines = (str, defines, macrosAlreadyExpanded) ->
-  # FIXME: allow for function-style macros
+applyDefines = (str, defines, opts, macrosExpanded) ->
+  str = str.replace backslashNewlineRegex, ""
   for defineStr, defineVal of defines
-    # TODO: see if there is a condition for this if statement that doesn't
-    # require regex matching, or is just generally cleaner
-    if ((not macrosAlreadyExpanded) or
-       (macrosAlreadyExpanded.indexOf(defineStr) is -1)) and
-      # this regex construction is safe because valid tokens for #defines will
-      # only contain [a-zA-z0-9_], as shown above in tokenRegex
-      # if there were hyphens, backslashes, or other such weird things, we would
-      # have to perform the appropriate escaping
-       str.match(new RegExp("\\b#{defineStr}\\b", "g"))
-      replaceString = ""
-      if defineVal isnt null
-        definesToSend = []
-        if macrosAlreadyExpanded
-          definesToSend = macrosAlreadyExpanded
-        definesToSend.push defineStr
+    defineObjectRegexStr = "\\b#{defineStr}\\b"
+    defineFunctionRegexStr = "\\b#{defineStr}\\([^\\)]*\\)"
+    if ((not macrosExpanded) or
+       (macrosExpanded.indexOf(defineStr) is -1))
+      definesToSend = []
+      if macrosExpanded
+        definesToSend = macrosExpanded
+      # expand object-like macros
+      if defineVal.type is "object" and
+         # this regex construction is safe because valid tokens for #defines
+         # will only contain [a-zA-z0-9_], as shown above in tokenRegex.
+         # if there were hyphens, backslashes, or other such weird things, we
+         # would have to perform the appropriate escaping.
+         str.match(new RegExp(defineObjectRegexStr, "g"))
         # recursively expand macros, but only a little
-        replaceString = applyDefines defineVal, defines, definesToSend
-      str = str.replace(new RegExp("\\b#{defineStr}\\b", "g"), replaceString)
+        definesToSend.push defineStr
+        replaceString = applyDefines defineVal.text, defines, opts,
+          definesToSend
+        str = str.replace(new RegExp(defineObjectRegexStr, "g"), replaceString)
+      else if defineVal.type is "function" and
+              str.match(new RegExp(defineFunctionRegexStr, "g"))
+        definesToSend.push defineStr
+        # the bottom two strings are guaranteed to exist by the regex above, so
+        # we don't check if they're null or whatever
+
+        # array of tokens with parens attached
+        tokensWithArgs = str.match(new RegExp(defineFunctionRegexStr, "g"))
+        # array of just the parens portion of each token instance
+        argsInParens =
+          tkwArgs.match(parentheticalExprRegex)[0] for tkwArgs in tokensWithArgs
+        # array of arrays of args for each function call
+        argsArr = ((argInP.match argumentRegex or []).map (s) ->
+          s.replace parenCommaWhitespaceRegex, "") for argInP in argsInParens
+        if tokensWithArgs.length isnt argsArr.length
+          throw new Error "lengths should be the same here!\n" +
+          "(this is a bug)"
+        for i in [0..(tokensWithArgs.length - 1)] by 1
+          str = applyFunctionDefine defineVal, argsArr[i], tokensWithArgs[i],
+            str, defines, definesToSend, opts
   return str
 
 # process preprocessor line functions
@@ -84,15 +123,14 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname) ->
   ++opts.line
 
 addFunctionMacro = (defineToken, lineAfterToken, opts) ->
-  console.error "addFunctionMacro not implemented yet"
-  process.exit -1
   args = lineAfterToken.match(parentheticalExprRegex)?[0]
   if not args
     throwError opts.file, "\#define #{defineToken}#{lineAfterToken}",
     opts.line, 2, "Function-like macro construction has no closing paren."
-  argsArr = args.match argumentRegex or [] # macros can have 0 arguments lol
-  argsArr.map (s) ->
-    s.replace parentheticalExprRegex, ""
+  # apparently macros can have 0 arguments lol
+  argsArr = (args.match argumentRegex or []).map (s) ->
+    s.replace parenCommaWhitespaceRegex, ""
+  argsArr = [] if argsArr = [''] # this simplifies the case of no arguments
   opts.defines[defineToken] =
     text: lineAfterToken.substr(lineAfterToken.indexOf(args) + args.length)
     type: "function"
@@ -112,7 +150,7 @@ addDefine = (directive, restOfLine, outStream, opts) ->
     "No token given to \#define."
   lineAfterToken = restOfLine.substr(
     restOfLine.indexOf(defineToken) + defineToken.length)
-  if lineAfterToken.charAt(0) is "("
+  if lineAfterToken.charAt(0) == "("
     addFunctionMacro defineToken, lineAfterToken, opts
   else
     addObjectMacro defineToken, lineAfterToken, opts
@@ -171,7 +209,7 @@ processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
   process.exit -1
 
 processSourceLine = (line, outStream, opts) ->
-  outLine = applyDefines line, opts.defines
+  outLine = applyDefines line, opts.defines, opts
   outStream.write outLine
   matches = line.match backslashNewlineRegex
   opts.line += matches.length if matches
