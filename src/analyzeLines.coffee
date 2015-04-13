@@ -54,7 +54,6 @@ applyFunctionDefine =
 (fnDefn, args, token, str, defines, macrosExpanded, opts) ->
   tokenIndex = str.indexOf token
   if args.length isnt fnDefn.args.length
-    # TODO: better column numbering
     throwError opts.file, str, opts.line, tokenIndex,
       "Incorrect number of arguments passed to function-like macro: should " +
       "be #{fnDefn.args.length}, not #{args.length}"
@@ -103,12 +102,18 @@ applyDefines = (str, defines, opts, macrosExpanded) ->
         # array of just the parens portion of each token instance
         argsInParens =
           tkwArgs.match(parentheticalExprRegex)[0] for tkwArgs in tokensWithArgs
-        # array of arrays of args for each function call
-        argsArr = ((argInP.match argumentRegex or []).map (s) ->
-          s.replace parenCommaWhitespaceRegex, "") for argInP in argsInParens
+        # array of arrays of args for each function call; because of this
+        # structure's complexity, we cannot use a comprehension as easily
+        argsArr = []
+        res = null
+        for argInP in argsInParens
+          res = ((argInP.match argumentRegex).map (s) ->
+            s.replace parenCommaWhitespaceRegex, "")
+          res = [] if res.length is 1 and res[0] == ""
+          argsArr.push res
         if tokensWithArgs.length isnt argsArr.length
           throw new Error "lengths should be the same here!\n" +
-          "(this is a bug)"
+          "(this is a bug; #{tokensWithArgs.length} and #{argsArr.length})"
         for i in [0..(tokensWithArgs.length - 1)] by 1
           str = applyFunctionDefine defineVal, argsArr[i], tokensWithArgs[i],
             str, defines, definesToSend, opts
@@ -130,9 +135,12 @@ addFunctionMacro = (defineToken, lineAfterToken, opts) ->
   # apparently macros can have 0 arguments lol
   argsArr = (args.match argumentRegex or []).map (s) ->
     s.replace parenCommaWhitespaceRegex, ""
-  argsArr = [] if argsArr = [''] # this simplifies the case of no arguments
+  # this simplifies the case of no arguments
+  argsArr = [] if argsArr.length is 1 and argsArr[0] == ""
   opts.defines[defineToken] =
-    text: lineAfterToken.substr(lineAfterToken.indexOf(args) + args.length)
+    text: lineAfterToken.substr(lineAfterToken.indexOf(args) +
+      args.length).replace(leadingWhitespaceRegex, "").replace(
+        trailingWhitespaceRegex, "")
     type: "function"
     args: argsArr
 
