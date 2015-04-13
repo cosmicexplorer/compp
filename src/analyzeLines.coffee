@@ -22,6 +22,10 @@ C99CommentNoBackslashRegex = /\/\/.*/g
 # matches beginning of /*-style comments
 slashStarBeginRegex = /\/\*/g
 slashStarEndRegex = /\*\//g
+# matches within parentheses
+parentheticalExprRegex = /\(.+\)/g
+parenCommaWhitespaceRegex = /[\(\),\s]/g
+argumentRegex = /[^,]+[,\)]/g
 
 # utility functions
 # throw error at file, line, col and exit "gracefully"
@@ -47,17 +51,18 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
   return num
 
 # apply all macro expansions to the given string
+# guaranteed that all macro arguments will not expand to
 applyDefines = (str, defines, macrosAlreadyExpanded) ->
   # FIXME: allow for function-style macros
   for defineStr, defineVal of defines
+    # TODO: see if there is a condition for this if statement that doesn't
+    # require regex matching, or is just generally cleaner
     if ((not macrosAlreadyExpanded) or
        (macrosAlreadyExpanded.indexOf(defineStr) is -1)) and
       # this regex construction is safe because valid tokens for #defines will
       # only contain [a-zA-z0-9_], as shown above in tokenRegex
       # if there were hyphens, backslashes, or other such weird things, we would
       # have to perform the appropriate escaping
-      # TODO: see if there is a condition for this if statement that doesn't
-      # require regex matching, or is just generally cleaner
        str.match(new RegExp("\\b#{defineStr}\\b", "g"))
       replaceString = ""
       if defineVal isnt null
@@ -66,7 +71,7 @@ applyDefines = (str, defines, macrosAlreadyExpanded) ->
           definesToSend = macrosAlreadyExpanded
         definesToSend.push defineStr
         # recursively expand macros, but only a little
-        replaceString = applyDefines defineValj, defines, definesToSend
+        replaceString = applyDefines defineVal, defines, definesToSend
       str = str.replace(new RegExp("\\b#{defineStr}\\b", "g"), replaceString)
   return str
 
@@ -79,14 +84,26 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname) ->
   ++opts.line
 
 addFunctionMacro = (defineToken, lineAfterToken, opts) ->
-  # TODO: write this
   console.error "addFunctionMacro not implemented yet"
   process.exit -1
+  args = lineAfterToken.match(parentheticalExprRegex)?[0]
+  if not args
+    throwError opts.file, "\#define #{defineToken}#{lineAfterToken}",
+    opts.line, 2, "Function-like macro construction has no closing paren."
+  argsArr = args.match argumentRegex or [] # macros can have 0 arguments lol
+  argsArr.map (s) ->
+    s.replace parentheticalExprRegex, ""
+  opts.defines[defineToken] =
+    text: lineAfterToken.substr(lineAfterToken.indexOf(args) + args.length)
+    type: "function"
+    args: argsArr
 
 addObjectMacro = (defineToken, lineAfterToken, opts) ->
   replaceToken = lineAfterToken.replace(backslashNewlineRegex, "").replace(
     leadingWhitespaceRegex, "").replace(trailingWhitespaceRegex, "")
-  opts.defines[defineToken] = replaceToken
+  opts.defines[defineToken] =
+    text: replaceToken
+    type: "object"
 
 addDefine = (directive, restOfLine, outStream, opts) ->
   defineToken = restOfLine.match(tokenRegex)?[0]
@@ -249,7 +266,7 @@ processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
 
 # this function sets up input and processing streams and calls processLine to
 # write the appropriate output to outStream; exposed to the frontend
-# e.g.,
+# example opts:
 # opts: {
 #  defines: { define1: null, define2: 2 },
 #  includes: ['/mnt/usr/include']
