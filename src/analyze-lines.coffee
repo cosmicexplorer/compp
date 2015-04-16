@@ -5,7 +5,7 @@ stream = require 'stream'
 ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
 
 # regexes
-directiveRegex = /^#[a-z_]+/g
+directiveRegex = /^\s*#[a-z_]+/g
 tokenRegex = /\b[a-zA-Z_0-9]+\b/g
 numberRegex = /[0-9]+/g
 backslashNewlineRegex = /\\\n/g
@@ -117,7 +117,11 @@ applyDefines = (str, defines, opts, macrosExpanded) ->
         for i in [0..(tokensWithArgs.length - 1)] by 1
           str = applyFunctionDefine defineVal, argsArr[i], tokensWithArgs[i],
             str, defines, definesToSend, opts
+  # __FILE__ and __LINE__ are constantly changed by the preprocessor, so we
+  # will special-case them here instead of inserting them as normal macros
   return str
+    .replace(/\b__FILE__\b/g, opts.file)
+    .replace(/\b__LINE__\b/g, opts.line)
 
 # process preprocessor line functions
 insertInclude = (directive, restOfLine, outStream, opts, dirname) ->

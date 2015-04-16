@@ -11,9 +11,13 @@ int /* hey \
 ;
 int c = 2;
 
-#define \
+  #define \
   CONST_VAR \
   42
+
+__LINE__
+__FILE__
+__LINE__
 
 /* #error hello */
 

@@ -30,7 +30,7 @@ opts = comppGetOpt.parseArgsFromArr process.argv
 
 if opts.help
   comppGetOpt.displayHelp()
-  process.exit 0
+  process.exit -1
 if opts.version
   comppGetOpt.displayVersion()
   process.exit 0

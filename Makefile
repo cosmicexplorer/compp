@@ -1,4 +1,3 @@
-# http://stackoverflow.com/questions/14028268/proper-method-for-wildcard-targets-in-gnu-make
 # generated shell script
 DRIVER = compp
 DRIVER_JS = $(patsubst %, obj/%.js, $(DRIVER))
