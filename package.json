@@ -9,7 +9,7 @@
     "test": "make check"
   },
   "bin": {
-    "compp": "src/compp.coffee"
+    "compp": "./compp"
   },
   "main": "obj/analyzeLines.js",
   "repository": {

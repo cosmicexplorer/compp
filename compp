@@ -1,5 +1,7 @@
 #!/bin/sh
+# generated driver script
+WD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+driver="$(echo  obj/compp.js)"
 
-WORKING_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-node "$WORKING_DIR/obj/compp.js" $@
+# pass all arguments to compp as args to node process
+node "$WD/$driver" $@
