@@ -22,8 +22,8 @@ process.argv[0] = "coffee"
 fs = require 'fs'
 path = require 'path'
 # local modules
-comppGetOpt = require "#{__dirname}/../obj/compp-getopt"
-analyzeLines = require "#{__dirname}/../obj/analyzeLines"
+comppGetOpt = require "#{__dirname}/compp-getopt"
+analyzeLines = require "#{__dirname}/analyze-lines"
 
 # parse and sanitize inputs
 opts = comppGetOpt.parseArgsFromArr process.argv
@@ -50,9 +50,7 @@ defines = {}
 for defStr in opts.defines
   hasFoundEqualsSign = false
   for i in [0..(defStr.length - 1)] by 1
-  # 'is' isn't working here, so use == instead
-  # not really sure why
-    if defStr.charAt(i) == "="
+    if defStr.charAt(i) is "="
       defines[defStr.substr(0, i)] =
         text: defStr.substr(i + 1)
         type: "object"

@@ -35,16 +35,16 @@ $(DEPS):
 	@npm install
 
 clean:
-	@rm -f $(OBJ) $(TEST_OBJ) $(TEST_COMP_OBJ) $(DRIVER)
+	@rm -f $(OBJ) $(TEST_OBJ) $(TEST_COMPP_OBJ)
 
 distclean: clean
 	@rm -rf $(DEPS)
 
 # let's make those tests
-%_out_cpp.c: %_in.c
+test/test%_out_cpp.c: test/test%_in.c
 	cpp $< -P -o $@
 
-%_out_compp.c: %_in.c $(DRIVER)
+test/test%_out_compp.c: test/test%_in.c
 	node $(DRIVER_JS) $< -o $@
 
 # we rely here on the test input/output naming scheme described above

@@ -2,7 +2,7 @@
 path = require 'path'
 stream = require 'stream'
 # local modules
-ConcatBackslashNewlinesStream = require './ConcatBackslashNewlinesStream'
+ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
 
 # regexes
 directiveRegex = /^#[a-z_]+/g

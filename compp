@@ -1,7 +1,5 @@
 #!/bin/sh
 
 WD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-driver="$(echo  obj/compp.js)"
 
-# pass all arguments to compp as args to node process
-node "$WD/$driver" $@
+node "$WD/../lib/node_modules/compp/obj/compp.js" $@
