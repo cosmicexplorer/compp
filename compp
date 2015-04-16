@@ -1,5 +1,5 @@
 #!/bin/sh
-# generated driver script
+
 WD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 driver="$(echo  obj/compp.js)"
 

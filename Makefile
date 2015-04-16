@@ -20,7 +20,7 @@ DEPS = node_modules
 
 .PHONY: all clean distclean check install
 
-all: $(DRIVER)
+all: $(DEPS) $(OBJ)
 
 # install_coffee_if_not.sh runs every time a .coffee file is compiled
 # the alternative is to run it in $(DEPS) and there's no guarantee make will
@@ -29,18 +29,6 @@ all: $(DRIVER)
 obj/%.js: src/%.coffee
 	@./install_coffee_if_not.sh
 	coffee -o obj -bc $<
-
-# no space between node and $(DRIVER_JS) for aesthetic reasons; the space is
-# actually inserted in the generated file
-$(DRIVER): $(DEPS) $(OBJ)
-	@echo "#!/bin/sh" > $@
-	@echo "# generated driver script" >> $@
-	@echo "WD=\$$(cd \"\$$(dirname \"\$${BASH_SOURCE[0]}\")\" && pwd)" >> $@
-	@echo "driver=\"\$$(echo $(DRIVER_JS))\"" >> $@
-	@echo >> $@
-	@echo "# pass all arguments as args to node process" >> $@
-	@echo "node \"\$$WD/\$$driver\" \$$@" >> $@
-	@chmod +x $@
 
 $(DEPS):
 	@echo "Installing required packages..."
@@ -57,7 +45,7 @@ distclean: clean
 	cpp $< -P -o $@
 
 %_out_compp.c: %_in.c $(DRIVER)
-	./$(DRIVER) $< -o $@
+	node $(DRIVER_JS) $< -o $@
 
 # we rely here on the test input/output naming scheme described above
 check: all $(TEST_OBJ) $(TEST_COMPP_OBJ)
