@@ -34,7 +34,7 @@ fileTokenRegex = /\b__FILE__\b/g
 lineTokenRegex = /\b__LINE__\b/g
 systemHeaderRegex = /^\s*<.+>/g
 localHeaderRegex = /^\s*".+"/g
-stripSideCaratsRegex = /[^<>]/g
+stripSideCaratsRegex = /[<>]/g
 stripQuotesRegex = /"/g
 
 # SUPER MEGA HACK TO GET INCLUDE DIRECTORIES
@@ -165,27 +165,36 @@ applyDefines = (str, defines, opts, macrosExpanded, line) ->
 
 # process preprocessor line functions
 insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
-  sysHeader = restOfLine.match systemHeaderRegex
-  localHeader = restOfLine.match localHeaderRegex
+  sysHeader = restOfLine.match(systemHeaderRegex)?[0]
+  localHeader = restOfLine.match(localHeaderRegex)?[0]
+  found = no
   if sysHeader
     sysHeader = sysHeader.replace leadingWhitespaceRegex, ""
     sysHeader = sysHeader.replace stripSideCaratsRegex, ""
-    found = no
     for includeDir in sysIncludeDirs
       try
         filePath = path.join(includeDir, sysHeader)
+        console.error filePath
         res = fs.statSync(filePath)
-        analyzeLines file, fs.createReadStream filePath, opts
+        prevFile = opts.file
+        prevLine = opts.line
+        analyzeLines(filePath, fs.createReadStream(filePath), opts)
+          .pipe(outStream)
+        # need to async await this
+        opts.file = prevFile
+        opts.line = prevLine
         found = yes
-        break
       catch err
+        console.error "NOT FOUND: #{err}"
         res = null
+      if found
+        break
     if not found
       throwError opts.file, line, opts.line, 2,
       "Include file <#{sysHeader}> not found."
-  for includeDir in opts.includes
-    fileStat = fs.statSync path.join includeDir, ""
-  outStream.write line
+  # for includeDir in opts.includes
+  #   fileStat = fs.statSync path.join includeDir, ""
+  # outStream.write line
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
   ++opts.line
