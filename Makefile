@@ -40,14 +40,13 @@ distclean: clean
 	@rm -rf $(DEPS)
 
 # let's make those tests
-test/test%_out_cpp.c: test/test%_in.c
+test/test%_out_cpp.c: test/test%_in.c all
 	cpp $< -P -o $@
-
-test/test%_out_compp.c: test/test%_in.c
+test/test%_out_compp.c: test/test%_in.c all
 	node $(DRIVER_JS) $< -o $@
 
 # we rely here on the test input/output naming scheme described above
-check: all $(TEST_OBJ) $(TEST_COMPP_OBJ)
+check: $(TEST_OBJ) $(TEST_COMPP_OBJ)
 	@./run_tests.sh $(TEST_OBJ)
 
 install: all

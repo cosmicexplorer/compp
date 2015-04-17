@@ -1,4 +1,5 @@
 # native modules
+fs = require 'fs'
 path = require 'path'
 stream = require 'stream'
 # local modules
@@ -31,6 +32,40 @@ argumentRegex = /[^,]+[,\)]/g
 charInQuotesRegex = /'(.)'/g
 fileTokenRegex = /\b__FILE__\b/g
 lineTokenRegex = /\b__LINE__\b/g
+systemHeaderRegex = /^\s*<.+>/g
+localHeaderRegex = /^\s*".+"/g
+stripSideCaratsRegex = /[^<>]/g
+stripQuotesRegex = /"/g
+
+# SUPER MEGA HACK TO GET INCLUDE DIRECTORIES
+
+# include directories
+sysIncludeDirs = [
+  "/usr/local/include"
+  "/usr/include"
+  ]
+localIncludeDirs = []
+
+try
+  res = fs.statSync "/usr/lib/gcc"
+  if not res.isDirectory()
+    throw "gcc is not a folder for some reason"
+catch err
+  throw new Error "gcc not installed or something, idk: #{err}"
+# now assuming gcc dirs exist
+# gcc version dirs
+gccVersionDirs = (fs.readdirSync "/usr/lib/gcc").map((inode) ->
+  path.join "/usr/lib/gcc", inode)
+  .filter((inode) ->
+    try   # in case it doesn't exist (even though the previous line checks that)
+      (fs.statSync inode).isDirectory()
+    catch err
+      return false)
+# actual include directories
+for dir in gccVersionDirs
+  # we're not going to check that they still exist here (race condition)
+  sysIncludeDirs.push (path.join dir, "include")
+  sysIncludeDirs.push (path.join dir, "include-fixed")
 
 # utility functions
 # throw error at file, line, col and exit "gracefully"
@@ -114,7 +149,7 @@ applyDefines = (str, defines, opts, macrosExpanded, line) ->
         for argInP in argsInParens
           res = ((argInP.match argumentRegex).map (s) ->
             s.replace parenCommaWhitespaceRegex, "")
-          res = [] if res.length is 1 and res[0] == ""
+          res = [] if res.length is 1 and res[0] is ""
           argsArr.push res
         if tokensWithArgs.length isnt argsArr.length
           throw new Error "lengths should be the same here!\n" +
@@ -130,7 +165,26 @@ applyDefines = (str, defines, opts, macrosExpanded, line) ->
 
 # process preprocessor line functions
 insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
-  # TODO: write this (do this part last)
+  sysHeader = restOfLine.match systemHeaderRegex
+  localHeader = restOfLine.match localHeaderRegex
+  if sysHeader
+    sysHeader = sysHeader.replace leadingWhitespaceRegex, ""
+    sysHeader = sysHeader.replace stripSideCaratsRegex, ""
+    found = no
+    for includeDir in sysIncludeDirs
+      try
+        filePath = path.join(includeDir, sysHeader)
+        res = fs.statSync(filePath)
+        analyzeLines file, fs.createReadStream filePath, opts
+        found = yes
+        break
+      catch err
+        res = null
+    if not found
+      throwError opts.file, line, opts.line, 2,
+      "Include file <#{sysHeader}> not found."
+  for includeDir in opts.includes
+    fileStat = fs.statSync path.join includeDir, ""
   outStream.write line
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
@@ -145,7 +199,7 @@ addFunctionMacro = (defineToken, lineAfterToken, opts, line) ->
   argsArr = (args.match argumentRegex or []).map (s) ->
     s.replace parenCommaWhitespaceRegex, ""
   # this simplifies the case of no arguments
-  argsArr = [] if argsArr.length is 1 and argsArr[0] == ""
+  argsArr = [] if argsArr.length is 1 and argsArr[0] is ""
   opts.defines[defineToken] =
     text: lineAfterToken.substr(lineAfterToken.indexOf(args) +
       args.length).replace(leadingWhitespaceRegex, "").replace(
@@ -445,6 +499,9 @@ processLine = (line, outStream, opts, inComment, dirname) ->
 # opts: {
 #  defines: { define1: null, define2: 2 },
 #  includes: ['/mnt/usr/include']
+#  line: 3
+#  file: "test.c"
+#  isInComment: no
 # }
 analyzeLines = (file, fileStream, opts) ->
   # initialize opts
