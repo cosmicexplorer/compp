@@ -11,9 +11,12 @@ int /* hey \
 ;
 int c = 2;
 
-  #define \
+  # define \
   CONST_VAR \
   42
+
+# ifdef A B
+#endif
 
 __LINE__
 __FILE__

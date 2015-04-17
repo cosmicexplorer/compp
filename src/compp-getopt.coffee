@@ -22,19 +22,19 @@ displayVersion = ->
 
 parseArgsFromArr = (argArr) ->
   exec = argArr.shift()
-  help = false
-  version = false
+  help = no
+  version = no
   defines = []
   undefs = []
   includes = []
   output = []
   # list of arguments without minuses
   argv = []
-  prevWasOutputFlag = false
+  prevWasOutputFlag = no
   for arg in argArr
     if prevWasOutputFlag
       output.push arg
-      prevWasOutputFlag = false
+      prevWasOutputFlag = no
     else if arg.match defineArgRegex
       defines.push arg.replace defineArgRegex, ""
     else if arg.match undefArgRegex
@@ -43,13 +43,13 @@ parseArgsFromArr = (argArr) ->
       includes.push arg.replace includeArgRegex, ""
     else if arg.match outputArgRegex
       if (arg.replace outputArgRegex, "") is ""
-        prevWasOutputFlag = true
+        prevWasOutputFlag = yes
       else
         output.push arg.replace outputArgRegex, ""
     else if arg.match helpArgRegex
-      help = true
+      help = yes
     else if arg.match versionArgRegex
-      version = true
+      version = yes
     else
       argv.push arg
   return {

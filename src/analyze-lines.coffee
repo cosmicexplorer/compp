@@ -5,7 +5,7 @@ stream = require 'stream'
 ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
 
 # regexes
-directiveRegex = /^\s*#[a-z_]+/g
+directiveRegex = /^\s*#\s*[a-z_]+/g
 tokenRegex = /\b[a-zA-Z_0-9]+\b/g
 numberRegex = /[0-9]+/g
 backslashNewlineRegex = /\\\n/g
@@ -51,7 +51,7 @@ getBackslashNewlinesBeforeToken = (str, tok) ->
   return num
 
 applyFunctionDefine =
-(fnDefn, args, token, str, defines, macrosExpanded, opts) ->
+(fnDefn, args, token, str, defines, macrosExpanded, opts, line) ->
   tokenIndex = str.indexOf token
   if args.length isnt fnDefn.args.length
     throwError opts.file, str, opts.line, tokenIndex,
@@ -69,7 +69,7 @@ applyFunctionDefine =
 
 # apply all macro expansions to the given string
 # guaranteed that all macro arguments will not expand to
-applyDefines = (str, defines, opts, macrosExpanded) ->
+applyDefines = (str, defines, opts, macrosExpanded, line) ->
   str = str.replace backslashNewlineRegex, ""
   for defineStr, defineVal of defines
     defineObjectRegexStr = "\\b#{defineStr}\\b"
@@ -89,7 +89,7 @@ applyDefines = (str, defines, opts, macrosExpanded) ->
         # recursively expand macros, but only a little
         definesToSend.push defineStr
         replaceString = applyDefines defineVal.text, defines, opts,
-          definesToSend
+          definesToSend, line
         str = str.replace(new RegExp(defineObjectRegexStr, "g"), replaceString)
       else if defineVal.type is "function" and
               str.match(new RegExp(defineFunctionRegexStr, "g"))
@@ -116,7 +116,7 @@ applyDefines = (str, defines, opts, macrosExpanded) ->
           "(this is a bug; #{tokensWithArgs.length} and #{argsArr.length})"
         for i in [0..(tokensWithArgs.length - 1)] by 1
           str = applyFunctionDefine defineVal, argsArr[i], tokensWithArgs[i],
-            str, defines, definesToSend, opts
+            str, defines, definesToSend, opts, line
   # __FILE__ and __LINE__ are constantly changed by the preprocessor, so we
   # will special-case them here instead of inserting them as normal macros
   return str
@@ -124,17 +124,17 @@ applyDefines = (str, defines, opts, macrosExpanded) ->
     .replace(/\b__LINE__\b/g, opts.line)
 
 # process preprocessor line functions
-insertInclude = (directive, restOfLine, outStream, opts, dirname) ->
+insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
   # TODO: write this (do this part last)
-  outStream.write "#include#{restOfLine}"
+  outStream.write line
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
   ++opts.line
 
-addFunctionMacro = (defineToken, lineAfterToken, opts) ->
+addFunctionMacro = (defineToken, lineAfterToken, opts, line) ->
   args = lineAfterToken.match(parentheticalExprRegex)?[0]
   if not args
-    throwError opts.file, "\#define #{defineToken}#{lineAfterToken}",
+    throwError opts.file, lin,
     opts.line, 2, "Function-like macro construction has no closing paren."
   # apparently macros can have 0 arguments lol
   argsArr = (args.match argumentRegex or []).map (s) ->
@@ -148,57 +148,57 @@ addFunctionMacro = (defineToken, lineAfterToken, opts) ->
     type: "function"
     args: argsArr
 
-addObjectMacro = (defineToken, lineAfterToken, opts) ->
+addObjectMacro = (defineToken, lineAfterToken, opts, line) ->
   replaceToken = lineAfterToken.replace(backslashNewlineRegex, "").replace(
     leadingWhitespaceRegex, "").replace(trailingWhitespaceRegex, "")
   opts.defines[defineToken] =
     text: replaceToken
     type: "object"
 
-addDefine = (directive, restOfLine, outStream, opts) ->
+addDefine = (directive, restOfLine, outStream, opts, line) ->
   defineToken = restOfLine.match(tokenRegex)?[0]
   if not defineToken
-    throwError opts.file, "#{directive}#{restOfLine}", opts.line, 2,
-    "No token given to \#define."
+    throwError opts.file, line, opts.line, 2,
+    "No token given to #define."
   lineAfterToken = restOfLine.substr(
     restOfLine.indexOf(defineToken) + defineToken.length)
   if lineAfterToken.charAt(0) == "("
-    addFunctionMacro defineToken, lineAfterToken, opts
+    addFunctionMacro defineToken, lineAfterToken, opts, line
   else
-    addObjectMacro defineToken, lineAfterToken, opts
+    addObjectMacro defineToken, lineAfterToken, opts, line
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
   ++opts.line
 
-removeDefine = (directive, restOfLine, outStream, opts) ->
+removeDefine = (directive, restOfLine, outStream, opts, line) ->
   undefToken = restOfLine.match(tokenRegex)?[0]
   if undefToken
-    throwError opts.file, opts.line, directive.length,
-    "No token given to \#undef."
+    throwError opts.file, line, opts.line, 2,
+    "No token given to #undef."
   delete opts.defines[undefToken]
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
   ++opts.line
 
-processError = (directive, restOfLine, opts) ->
+processError = (directive, restOfLine, opts, line) ->
   # the literal 2 here is verbatim from gnu cpp
-  throwError opts.file, "#{directive}#{restOfLine}", opts.line, 2,
+  throwError opts.file, line, opts.line, 2,
     restOfLine.replace(leadingWhitespaceRegex, "")
     .replace(trailingWhitespaceRegex, "")
 
-processPragma = (directive, restOfLine, outStream, opts) ->
+processPragma = (directive, restOfLine, outStream, opts, line) ->
   # we don't do anything here, but it's left here for clarity
-  outStream.write "#{directive}#{restOfLine}"
+  outStream.write line
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
   ++opts.line
 
-processLineDirective = (directive, restOfLine, outStream, opts) ->
+processLineDirective = (directive, restOfLine, outStream, opts, line) ->
   toLine = restOfLine.match(tokenRegex)?[0] # get first token
   backslashesBeforeToLine =
     getBackslashNewlinesBeforeToken restOfLine, toLine
   if not toLine                             # if line just "#line \n"
-    throwError opts.file, "#{directive}#{restOfLine}", opts.line,
+    throwError opts.file, line, opts.line,
     directive.length, "No line number given in #{directive} directive."
   if not toLine.match numberRegex
     throwError opts.file, opts.line + backslashesBeforeToLine, directive.length,
@@ -207,7 +207,7 @@ processLineDirective = (directive, restOfLine, outStream, opts) ->
   backslashesBeforeToFile = getBackslashNewlinesBeforeToken restOfLines, toFile
   if toFile                                 # second token is optional
     if not toFile.match stringInQuotes      # if not in quotes
-      throwError opts.file, opts.line + backslashesBeforeToFile,
+      throwError opts.file, line, opts.line + backslashesBeforeToFile,
       directive.length,
       "Invalid file name given in #{directive} directive."
     else
@@ -215,13 +215,64 @@ processLineDirective = (directive, restOfLine, outStream, opts) ->
   # set down here because we want to give the correct line number on error
   opts.line = toLine
 
-processIf = (directive, restOfLine, outStream, opts, ifStack, dirname) ->
-  # TODO: write this
-  console.error "processIf not implemented!"
-  process.exit -1
+processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
 
-processSourceLine = (line, outStream, opts) ->
-  outLine = applyDefines line, opts.defines, opts
+
+processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
+  nextToken = restOfLine.match(tokenRegex)?[0]
+  if directive is "ifdef"
+    if not nextToken
+      throwError opts.file, line, opts.line, 2,
+      "No token given to #ifdef"
+    else if opts.defines[nextToken]
+      opts.ifStack.push
+        isCurrentlyTrue: yes
+        hasBeenTrue: yes
+        ifLine: opts.line
+        ifFile: opts.file
+    else
+      opts.ifStack.push
+        isCurrentlyTrue: no
+        hasBeenTrue: no
+        ifLine: opts.line
+        ifFile: opts.file
+  else if directive is "ifndef"
+    if not nextToken
+      throwError opts.file, line, opts.line, 2,
+      "No token given to #ifndef"
+    else if not opts.defines[nextToken]
+      opts.ifStack.push
+        isCurrentlyTrue: yes
+        hasBeenTrue: yes
+        ifLine: opts.line
+        ifFile: opts.file
+    else
+      opts.ifStack.push
+        isCurrentlyTrue: no
+        hasBeenTrue: no
+        ifLine: opts.line
+        ifFile: opts.file
+  else if directive is "else"
+    if opts.ifStack.length > 0
+      throwError opts.file, line, opts.line, 2,
+      "#else without opening #if"
+    else if opts.ifStack[opts.ifStack.length - 1].hasBeenTrue
+      opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = no
+    else
+      opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = yes
+      opts.ifStack[opts.ifStack.length - 1].hasBeenTrue = yes
+  else if directive is "endif"
+    if opts.ifStack.length > 0
+      throwError opts.file, line, opts.line, 2,
+      "#endif without opening #if"
+    else
+      opts.ifStack.pop()
+  else
+    # #if and #elif
+    processIfConstExpr directive, restOfLine, outStream, opts, dirname, line
+
+processSourceLine = (line, outStream, opts, origLine) ->
+  outLine = applyDefines line, opts.defines, opts, origLine
   outStream.write outLine
   matches = line.match backslashNewlineRegex
   opts.line += matches.length if matches
@@ -241,7 +292,7 @@ processComments = (line, opts) ->
         newLine.pop()
     else
       if c in "/" and prevChar is "*"
-        opts.isInComment = false
+        opts.isInComment = no
       if c is "\n" and prevChar is "\\"
         # keep the \\\n in there! why? figure it out!!!
         newLine.push "\\"
@@ -262,42 +313,45 @@ processComments = (line, opts) ->
 # opts as appropriate, finally outputting the correct output to outStream
 # we chose to leave the concatenation of backslash-newlines to each processLine
 # function so that they can give the appropriate lines and columns on each error
-processLine = (line, outStream, opts, ifStack, inComment, dirname) ->
+processLine = (line, outStream, opts, inComment, dirname) ->
+  origLine = line
   # clobbers opts.isInComment (in a good way)
   line = processComments line, opts
-
   directive = line.match(directiveRegex)?[0]
   restOfLine = ""
   if not directive
     restOfLine = line
   else
-    restOfLine = line.substr directive.length
-  if ifStack.length is 0 or ifStack[ifStack.length - 1].isCurrentlyTrue
+    restOfLine = line.substr (line.indexOf directive) + directive.length
+    directive = directive.replace /\s/g, ""
+    directive = directive.replace /#/g, ""
+  if opts.ifStack.length is 0 or
+     opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue
     switch directive
-      when "\#include"
-      then insertInclude directive, restOfLine, outStream, opts, dirname
-      when "\#define"
-      then addDefine directive, restOfLine, outStream, opts
-      when "\#undef"
-      then removeDefine directive, restOfLine, outStream, opts
-      when "\#error"
-      then processError directive, restOfLine, opts
-      # TODO: not sure if we should do anything here
-      when "\#pragma"
-      then processPragma directive, restOfLine, outStream, opts
-      when "\#line"
-      then processLineDirective directive, restOfLine, outStream, opts
+      when "include"
+      then insertInclude directive, restOfLine, outStream, opts, dirname,
+        origLine
+      when "define"
+      then addDefine directive, restOfLine, outStream, opts, origLine
+      when "undef"
+      then removeDefine directive, restOfLine, outStream, opts, origLine
+      when "error"
+      then processError directive, restOfLine, opts, origLine
+      when "pragma"
+      then processPragma directive, restOfLine, outStream, opts, origLine
+      when "line"
+      then processLineDirective directive, restOfLine, outStream, opts, origLine
       else
-        if directive?.match directiveRegex
+        if directive
           # works on #if, #else, #endif, #ifdef, #ifndef, #elif
-          processIf directive, restOfLine, outStream, opts, ifStack, dirname
+          processIf directive, restOfLine, outStream, opts, dirname, origLine
         # just a normal source line
         else
           # output if not within a #if or if within a true #if
-          processSourceLine line, outStream, opts
+          processSourceLine line, outStream, opts, origLine
   else
     if directive and directive.match condRegex
-      processIf directive, restOfLine, outStream, opts, ifStack, dirname
+      processIf directive, restOfLine, outStream, opts, dirname
     else
       # gotta keep those lines in place
       if directive and restOfLine
@@ -325,7 +379,7 @@ analyzeLines = (file, fileStream, opts) ->
   # initialize opts
   opts.line = 1
   opts.file = file
-  opts.isInComment = false
+  opts.isInComment = no
   # get pwd of file
   dirname = path.dirname file
   # initialize streams
@@ -336,18 +390,20 @@ analyzeLines = (file, fileStream, opts) ->
   # each element is laid out as:
   # {
   #   hasBeenTrue: true
-  #   isCurrentlyTrue: false
+  #   isCurrentlyTrue: no
+  #   ifLine: 342
+  #   ifFile: "test.c"
   # }
   # hasBeenTrue is true so we know whether to process "else" statements
   # isCurrentlyTrue tells us whether we're processing the current branch of if
-  ifStack = []
+  opts.ifStack = []
   # whether currently in comment
-  inComment = false
+  inComment = no
   fileStream.on 'error', (err) ->
     console.error "Error in reading input file: #{file}."
     throw err
   lineStream.on 'line', (line) ->
-    processLine line, outStream, opts, ifStack, inComment, dirname
+    processLine line, outStream, opts, inComment, dirname
   return outStream
 
 module.exports = analyzeLines

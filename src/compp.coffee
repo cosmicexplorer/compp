@@ -48,13 +48,13 @@ if opts.output.length is 0 and opts.argv.length is 2
 
 defines = {}
 for defStr in opts.defines
-  hasFoundEqualsSign = false
+  hasFoundEqualsSign = no
   for i in [0..(defStr.length - 1)] by 1
     if defStr.charAt(i) is "="
       defines[defStr.substr(0, i)] =
         text: defStr.substr(i + 1)
         type: "object"
-      hasFoundEqualsSign = true
+      hasFoundEqualsSign = yes
       break
   if not hasFoundEqualsSign
     defines[defStr] =
