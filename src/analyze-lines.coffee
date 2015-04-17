@@ -15,6 +15,8 @@ condRegex = /(if|else)/g
 notWhitespaceRegex = /[^\s]/g
 leadingWhitespaceRegex = /^\s+/g
 trailingWhitespaceRegex = /\s+$/g
+whitespaceRegex = /\s/g
+hashRegex = /#/g
 # matches //-style comments until backslash-newline
 C99CommentBackslashRegex = /\/\/.*\\\n/g
 # matches //-style comments until end of line
@@ -26,6 +28,7 @@ slashStarEndRegex = /\*\//g
 parentheticalExprRegex = /\([^\)]*\)/g
 parenCommaWhitespaceRegex = /[\(\),\s]/g
 argumentRegex = /[^,]+[,\)]/g
+charInQuotesRegex = /'(.)'/g
 
 # utility functions
 # throw error at file, line, col and exit "gracefully"
@@ -215,8 +218,80 @@ processLineDirective = (directive, restOfLine, outStream, opts, line) ->
   # set down here because we want to give the correct line number on error
   opts.line = toLine
 
-processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
+ifDefinedCallback = (opts, line) ->
+  return (str, g1) ->
+    tokMatches = g1.match tokenRegex
+    if not tokMatches or tokMatches.length > 1
+      throwError opts.file, line, opts.line, line.indexOf("defined"),
+      "Invalid token provided to 'defined' operator in preprocessor " +
+      "conditional."
+    else
+      tokenMatch = tokMatches[0]
+      if opts.defines[g1]
+        return ' 1 '
+      else
+        return ' 0 '
 
+# perform mathematical operations according to c syntax
+doIfCondMath = (str, opts, line) ->
+  str = str.replace backslashNewlineRegex, ""
+  # sanitize input
+  # replace character expressions with their ascii values
+  str = str.replace charInQuotesRegex, (str, g1) ->
+    g1.charCodeAt(0)
+  # allowed characters
+  res = /[^0-9\(\)!%\^&\*\-\+\|\/=~<>]/g.exec str
+  if res
+    throwError opts.file, line, opts.line, 2,
+    "invalid character in preprocessor conditional: #{res[0]}"
+  else
+    try
+      resVal = eval str
+    catch err
+      throwError opts.file, line, opts.line, 2,
+      "invalid expression in preprocessor conditional: #{err}"
+    return resVal > 0
+
+processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
+  if directive is "elif"        # handle else
+    # no 'else' for this if/else if chain, but that's because every branch
+    # either quits the process or returns
+    if opts.ifStack.length is 0
+      throwError opts.file, line, opts.line, 2, "#elif without opening #if"
+    else if opts.ifStack[opts.ifStack.length - 1].hasBeenTrue
+      opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = no
+      return
+    # else
+    #   opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = yes
+    #   opts.ifStack[opts.ifStack.length - 1].hasBeenTrue = yes
+  if directive is "if" or "elif"
+    # replace "defined(TOKEN)" with whether it is defined (0 or 1)
+    restOfLine = restOfLine.replace /\bdefined\s*\(([^\)]*)\)/g,
+      ifDefinedCallback(opts, line)
+    # now that that's done, replace "defined TOKEN" as well
+    # (this does not interact with the previous regex)
+    restOfLine = restOfLine.replace /\bdefined\s*(\w+)/g,
+      ifDefinedCallback(opts, line)
+    # now expand all other macros
+    restOfLine = applyDefines restOfLine, opts.defines, opts, [], line
+    boolResult = doIfCondMath restOfLine, opts, line
+    if directive is "if"        # stick a new one on there
+      opts.ifStack[opts.ifStack.length - 1].push
+        hasBeenTrue: boolResult
+        isCurrentlyTrue: boolResult
+        ifLine: opts.line
+        ifFile: opts.file
+        ifText: line
+    else                        # replace what's currently on there
+      opts.ifStack[opts.ifStack.length - 1] =
+        hasBeenTrue: boolResult
+        isCurrentlyTrue: boolResult
+        ifLine: opts.line
+        ifFile: opts.file
+        ifText: line
+  else
+    throwError opts.file, line, opts.line, 2,
+    "unrecognized preprocessor directive: #{directive}"
 
 processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
   nextToken = restOfLine.match(tokenRegex)?[0]
@@ -230,12 +305,14 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
         hasBeenTrue: yes
         ifLine: opts.line
         ifFile: opts.file
+        ifText: line
     else
       opts.ifStack.push
         isCurrentlyTrue: no
         hasBeenTrue: no
         ifLine: opts.line
         ifFile: opts.file
+        ifText: line
   else if directive is "ifndef"
     if not nextToken
       throwError opts.file, line, opts.line, 2,
@@ -246,14 +323,16 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
         hasBeenTrue: yes
         ifLine: opts.line
         ifFile: opts.file
+        ifText: line
     else
       opts.ifStack.push
         isCurrentlyTrue: no
         hasBeenTrue: no
         ifLine: opts.line
         ifFile: opts.file
+        ifText: line
   else if directive is "else"
-    if opts.ifStack.length > 0
+    if opts.ifStack.length is 0
       throwError opts.file, line, opts.line, 2,
       "#else without opening #if"
     else if opts.ifStack[opts.ifStack.length - 1].hasBeenTrue
@@ -270,6 +349,9 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
   else
     # #if and #elif
     processIfConstExpr directive, restOfLine, outStream, opts, dirname, line
+  matches = line.match backslashNewlineRegex
+  opts.line += matches.length if matches
+  ++opts.line
 
 processSourceLine = (line, outStream, opts, origLine) ->
   outLine = applyDefines line, opts.defines, opts, origLine
@@ -297,11 +379,8 @@ processComments = (line, opts) ->
         # keep the \\\n in there! why? figure it out!!!
         newLine.push "\\"
         newLine.push "\n"
-
     prevChar = c
-
   newLine = newLine.join ""
-
   # respect C99 //-style comments
   # MUST run backslash regex first for correct results
   newLine = newLine.replace C99CommentBackslashRegex, "\\\n"
@@ -323,8 +402,8 @@ processLine = (line, outStream, opts, inComment, dirname) ->
     restOfLine = line
   else
     restOfLine = line.substr (line.indexOf directive) + directive.length
-    directive = directive.replace /\s/g, ""
-    directive = directive.replace /#/g, ""
+    directive = directive.replace whitespaceRegex, ""
+    directive = directive.replace hashRegex, ""
   if opts.ifStack.length is 0 or
      opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue
     switch directive
@@ -393,6 +472,7 @@ analyzeLines = (file, fileStream, opts) ->
   #   isCurrentlyTrue: no
   #   ifLine: 342
   #   ifFile: "test.c"
+  #   ifText: "#ifdef ASDF"
   # }
   # hasBeenTrue is true so we know whether to process "else" statements
   # isCurrentlyTrue tells us whether we're processing the current branch of if
@@ -404,6 +484,8 @@ analyzeLines = (file, fileStream, opts) ->
     throw err
   lineStream.on 'line', (line) ->
     processLine line, outStream, opts, inComment, dirname
+  lineStream.on 'end', ->
+    cleanupStream outStream, opts
   return outStream
 
 module.exports = analyzeLines
