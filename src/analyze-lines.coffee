@@ -29,6 +29,8 @@ parentheticalExprRegex = /\([^\)]*\)/g
 parenCommaWhitespaceRegex = /[\(\),\s]/g
 argumentRegex = /[^,]+[,\)]/g
 charInQuotesRegex = /'(.)'/g
+fileTokenRegex = /\b__FILE__\b/g
+lineTokenRegex = /\b__LINE__\b/g
 
 # utility functions
 # throw error at file, line, col and exit "gracefully"
@@ -123,8 +125,8 @@ applyDefines = (str, defines, opts, macrosExpanded, line) ->
   # __FILE__ and __LINE__ are constantly changed by the preprocessor, so we
   # will special-case them here instead of inserting them as normal macros
   return str
-    .replace(/\b__FILE__\b/g, opts.file)
-    .replace(/\b__LINE__\b/g, opts.line)
+    .replace(fileTokenRegex, opts.file)
+    .replace(lineTokenRegex, opts.line)
 
 # process preprocessor line functions
 insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
@@ -295,42 +297,32 @@ processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
 
 processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
   nextToken = restOfLine.match(tokenRegex)?[0]
+  retCondStackObj =
+    ifLine: opts.line
+    ifFile: opts.file
+    ifText: line
   if directive is "ifdef"
     if not nextToken
       throwError opts.file, line, opts.line, 2,
       "No token given to #ifdef"
     else if opts.defines[nextToken]
-      opts.ifStack.push
-        isCurrentlyTrue: yes
-        hasBeenTrue: yes
-        ifLine: opts.line
-        ifFile: opts.file
-        ifText: line
+      retCondStackObj.isCurrentlyTrue = yes
+      retCondStackObj.hasBeenTrue = yes
     else
-      opts.ifStack.push
-        isCurrentlyTrue: no
-        hasBeenTrue: no
-        ifLine: opts.line
-        ifFile: opts.file
-        ifText: line
+      retCondStackObj.isCurrentlyTrue = no
+      retCondStackObj.hasBeenTrue = no
+    opts.ifStack.push retCondStackObj
   else if directive is "ifndef"
     if not nextToken
       throwError opts.file, line, opts.line, 2,
       "No token given to #ifndef"
     else if not opts.defines[nextToken]
-      opts.ifStack.push
-        isCurrentlyTrue: yes
-        hasBeenTrue: yes
-        ifLine: opts.line
-        ifFile: opts.file
-        ifText: line
+      retCondStackObj.isCurrentlyTrue = yes
+      retCondStackObj.hasBeenTrue = yes
     else
-      opts.ifStack.push
-        isCurrentlyTrue: no
-        hasBeenTrue: no
-        ifLine: opts.line
-        ifFile: opts.file
-        ifText: line
+      retCondStackObj.isCurrentlyTrue = no
+      retCondStackObj.hasBeenTrue = no
+    opts.ifStack.push retCondStackObj
   else if directive is "else"
     if opts.ifStack.length is 0
       throwError opts.file, line, opts.line, 2,
@@ -341,7 +333,7 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
       opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = yes
       opts.ifStack[opts.ifStack.length - 1].hasBeenTrue = yes
   else if directive is "endif"
-    if opts.ifStack.length > 0
+    if opts.ifStack.length is 0
       throwError opts.file, line, opts.line, 2,
       "#endif without opening #if"
     else
@@ -430,7 +422,7 @@ processLine = (line, outStream, opts, inComment, dirname) ->
           processSourceLine line, outStream, opts, origLine
   else
     if directive and directive.match condRegex
-      processIf directive, restOfLine, outStream, opts, dirname
+      processIf directive, restOfLine, outStream, opts, dirname, origLine
     else
       # gotta keep those lines in place
       if directive and restOfLine

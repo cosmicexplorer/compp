@@ -15,7 +15,9 @@ int c = 2;
   CONST_VAR \
   42
 
-# ifdef A B
+# ifdef A
+2
+
 #endif
 
 __LINE__
