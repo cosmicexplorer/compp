@@ -38,6 +38,9 @@ stripSideCaratsRegex = /[<>]/g
 stripQuotesRegex = /"/g
 allowedConditionalChars = /[^0-9\(\)!%\^&\*\-\+\|\/=~<>\\\s]/g
 
+# constants
+defineErrorCol = 2
+
 # SUPER MEGA HACK TO GET INCLUDE DIRECTORIES
 
 # include directories
@@ -45,6 +48,7 @@ sysIncludeDirs = [
   "/usr/local/include"
   "/usr/include"
   "/usr/include/linux"
+  "/usr/include/sys"
   ]
 localIncludeDirs = []
 
@@ -75,9 +79,9 @@ throwError = (file, line, line_num, col, err) ->
   console.error "#{file}:#{line_num}:#{col}: error: #{err}"
   process.stderr.write line
   # add the cute little carat showing you where your problem is
-  for i in [1..(col)] by 1
+  for i in [1..(col - 1)] by 1
     process.stderr.write " "
-  process.stderr.write "^\n"
+  process.stderr.write "^~~\n"
   process.exit -1
 
 getBackslashNewlinesBeforeToken = (str, tok) ->
@@ -176,7 +180,6 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
     for includeDir in sysIncludeDirs
       try
         filePath = path.join(includeDir, sysHeader)
-        console.error filePath
         res = fs.statSync(filePath) # throws if dne
         # FIXME:
         # while we wish we could just throw in a clone of the current opts as an
@@ -193,34 +196,36 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
         # stop reading this input stream while reading another (the header)
         prevInFileStream.pause()
         analyzeLines(filePath, fs.createReadStream(filePath), opts)
-          .pipe(outStream).on 'end', -> # now start again
+          .pipe(outStream)
+          .on 'end', -> # now start again
             prevInFileStream.unpause()
-        # need to async await this
-        opts.file = prevFile
-        opts.line = prevLine
-        opts.inFileStream = prevInFileStream
+            console.error "RETURN:"
+            console.error "FILE: #{opts.file}: NEW: #{prevFile}"
+            console.error "LINE: #{opts.line}: NEW: #{prevLine}"
+            opts.file = prevFile
+            opts.line = prevLine
+            opts.inFileStream = prevInFileStream
+            matches = restOfLine.match backslashNewlineRegex
+            opts.line += matches.length if matches
+            ++opts.line
         found = yes
       catch err
-        console.error "NOT_FOUND: #{err}"
         res = null
       if found
         break
     if not found
       opts.inFileStream.close()
-      throwError opts.file, line, opts.line, 2,
+      throwError opts.file, line, opts.line, defineErrorCol,
       "Include file <#{sysHeader}> not found."
   # for includeDir in opts.includes
   #   fileStat = fs.statSync path.join includeDir, ""
   # outStream.write line
-  matches = restOfLine.match backslashNewlineRegex
-  opts.line += matches.length if matches
-  ++opts.line
 
 addFunctionMacro = (defineToken, lineAfterToken, opts, line) ->
   args = lineAfterToken.match(parentheticalExprRegex)?[0]
   if not args
     throwError opts.file, lin,
-    opts.line, 2, "Function-like macro construction has no closing paren."
+    opts.line, defineErrorCol, "Function-like macro construction has no closing paren."
   # apparently macros can have 0 arguments lol
   argsArr = (args.match argumentRegex or []).map (s) ->
     s.replace parenCommaWhitespaceRegex, ""
@@ -243,7 +248,7 @@ addObjectMacro = (defineToken, lineAfterToken, opts, line) ->
 addDefine = (directive, restOfLine, outStream, opts, line) ->
   defineToken = restOfLine.match(tokenRegex)?[0]
   if not defineToken
-    throwError opts.file, line, opts.line, 2,
+    throwError opts.file, line, opts.line, defineErrorCol,
     "No token given to #define."
   lineAfterToken = restOfLine.substr(
     restOfLine.indexOf(defineToken) + defineToken.length)
@@ -258,7 +263,8 @@ addDefine = (directive, restOfLine, outStream, opts, line) ->
 removeDefine = (directive, restOfLine, outStream, opts, line) ->
   undefToken = restOfLine.match(tokenRegex)?[0]
   if undefToken
-    throwError opts.file, line, opts.line, 2,
+    # FIXME: this should NOT applyDefines to anything
+    throwError opts.file, line, opts.line, defineErrorCol,
     "No token given to #undef."
   delete opts.defines[undefToken]
   matches = restOfLine.match backslashNewlineRegex
@@ -267,7 +273,7 @@ removeDefine = (directive, restOfLine, outStream, opts, line) ->
 
 processError = (directive, restOfLine, opts, line) ->
   # the literal 2 here is verbatim from gnu cpp
-  throwError opts.file, line, opts.line, 2,
+  throwError opts.file, line, opts.line, defineErrorCol,
     restOfLine.replace(leadingWhitespaceRegex, "")
     .replace(trailingWhitespaceRegex, "")
 
@@ -324,13 +330,13 @@ doIfCondMath = (str, opts, line) ->
   # allowed characters
   res = allowedConditionalChars.exec str
   if res
-    throwError opts.file, line, opts.line, 2,
+    throwError opts.file, line, opts.line, defineErrorCol,
     "invalid character in preprocessor conditional: #{res[0]}"
   else
     try
       resVal = eval str
     catch err
-      throwError opts.file, line, opts.line, 2,
+      throwError opts.file, line, opts.line, defineErrorCol,
       "invalid expression in preprocessor conditional: #{err}"
     return resVal > 0
 
@@ -339,7 +345,7 @@ processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
     # no 'else' for this if/else if chain, but that's because every branch
     # either quits the process or returns
     if opts.ifStack.length is 0
-      throwError opts.file, line, opts.line, 2, "#elif without opening #if"
+      throwError opts.file, line, opts.line, defineErrorCol, "#elif without opening #if"
     else if opts.ifStack[opts.ifStack.length - 1].hasBeenTrue
       opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = no
       return
@@ -372,7 +378,7 @@ processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
         ifFile: opts.file
         ifText: line
   else
-    throwError opts.file, line, opts.line, 2,
+    throwError opts.file, line, opts.line, defineErrorCol,
     "unrecognized preprocessor directive: #{directive}"
 
 processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
@@ -383,7 +389,7 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
     ifText: line
   if directive is "ifdef"
     if not nextToken
-      throwError opts.file, line, opts.line, 2,
+      throwError opts.file, line, opts.line, defineErrorCol,
       "No token given to #ifdef"
     else if opts.defines[nextToken]
       retCondStackObj.isCurrentlyTrue = yes
@@ -394,7 +400,7 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
     opts.ifStack.push retCondStackObj
   else if directive is "ifndef"
     if not nextToken
-      throwError opts.file, line, opts.line, 2,
+      throwError opts.file, line, opts.line, defineErrorCol,
       "No token given to #ifndef"
     else if not opts.defines[nextToken]
       retCondStackObj.isCurrentlyTrue = yes
@@ -405,7 +411,7 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
     opts.ifStack.push retCondStackObj
   else if directive is "else"
     if opts.ifStack.length is 0
-      throwError opts.file, line, opts.line, 2,
+      throwError opts.file, line, opts.line, defineErrorCol,
       "#else without opening #if"
     else if opts.ifStack[opts.ifStack.length - 1].hasBeenTrue
       opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = no
@@ -414,7 +420,7 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
       opts.ifStack[opts.ifStack.length - 1].hasBeenTrue = yes
   else if directive is "endif"
     if opts.ifStack.length is 0
-      throwError opts.file, line, opts.line, 2,
+      throwError opts.file, line, opts.line, defineErrorCol,
       "#endif without opening #if"
     else
       opts.ifStack.pop()
@@ -552,7 +558,8 @@ analyzeLines = (file, fileStream, opts) ->
   # }
   # hasBeenTrue is true so we know whether to process "else" statements
   # isCurrentlyTrue tells us whether we're processing the current branch of if
-  opts.ifStack = []
+  if not opts.ifStack
+    opts.ifStack = []
   # whether currently in comment
   inComment = no
   fileStream.on 'error', (err) ->
