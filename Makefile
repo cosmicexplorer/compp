@@ -1,54 +1,65 @@
-# generated shell script
-DRIVER = compp
-DRIVER_JS = $(patsubst %, obj/%.js, $(DRIVER))
+.PHONY: all clean distclean check install
+
+# required to build
+NPM_BIN = $(shell npm bin)
+FORMAT_OUTPUT_EXE = c-format
 
 # put source inputs in src/ and make them coffee files
-SRC = $(wildcard src/*.coffee)
-# make will output .js in obj/ as .js files
-OBJ = $(patsubst src/%.coffee, obj/%.js, $(SRC))
+SRC_DIR = src
+SRC = $(wildcard $(SRC_DIR)/*.coffee)
+OBJ_DIR = lib/compp
+OBJ = $(patsubst $(SRC_DIR)/%.coffee, $(OBJ_DIR)/%.js, $(SRC))
 
-# put test inputs in test/ and name them something that matches /test.+_in.c/
-TEST_IN = $(wildcard test/test*_in.c)
-# output of tests will be in test/ and match /test.+_out_(cpp|compp).c/
+# "binary"
+DRIVER = compp
+BIN_DIR = bin
+BIN_DRIVER = $(BIN_DIR)/$(DRIVER)
+
+# setup test directories
+TEST_DIR = test
+TEST_IN_DIR = $(TEST_DIR)/in
+TEST_OUT_DIR = $(TEST_DIR)/out
+TEST_OUT_CPP_DIR = $(TEST_OUT_DIR)/cpp
+TEST_OUT_COMPP_DIR = $(TEST_OUT_DIR)/compp
+TEST_IN = $(wildcard $(TEST_IN_DIR)/*.c)
 # these are the output of cpp
-TEST_OBJ = $(patsubst test/test%_in.c, test/test%_out_cpp.c, $(TEST_IN))
+TEST_CPP_OBJ = $(patsubst $(TEST_IN_DIR)/%.c, \
+	$(TEST_OUT_CPP_DIR)/%.c, $(TEST_IN))
 # these are the output of compp!
-TEST_COMPP_OBJ = $(patsubst test/test%_in.c, test/test%_out_compp.c, $(TEST_IN))
+TEST_COMPP_OBJ = $(patsubst $(TEST_IN_DIR)/%.c, \
+	$(TEST_OUT_COMPP_DIR)/%.c, $(TEST_IN))
 
 DEPS = node_modules
 
-.PHONY: all clean distclean check install
+all: $(BIN_DRIVER)
 
-all: $(DEPS) $(OBJ)
+$(BIN_DRIVER): $(DEPS) $(OBJ)
+	@cp $@-stub $@
+	@chmod +x $@
 
-# install_coffee_if_not.sh runs every time a .coffee file is compiled
-# the alternative is to run it in $(DEPS) and there's no guarantee make will
-# compile $(DEPS) before $(OBJ)
-# the below compiles all of $(OBJ)
-obj/%.js: src/%.coffee
-	@./install_coffee_if_not.sh
-	coffee -o obj -bc $<
+$(OBJ_DIR)/%.js: $(SRC_DIR)/%.coffee
+	coffee -o $(OBJ_DIR) -bc $<
 
 $(DEPS):
 	@echo "Installing required packages..."
 	@npm install
 
 clean:
-	@rm -f $(OBJ) $(TEST_OBJ) $(TEST_COMPP_OBJ)
+	@rm -f $(OBJ) $(TEST_CPP_OBJ) $(TEST_COMPP_OBJ) $(BIN_DRIVER)
 
 distclean: clean
 	@rm -rf $(DEPS)
 
 # let's make those tests
-test/test%_out_cpp.c: test/test%_in.c all
-	cpp $< -P -o $@
-test/test%_out_compp.c: test/test%_in.c all
-	node $(DRIVER_JS) $< -o $@
+$(TEST_OUT_CPP_DIR)/%.c: $(TEST_IN_DIR)/%.c all
+	cpp $< -P | $(NPM_BIN)/$(FORMAT_OUTPUT_EXE) - $@ -n0
+# create compp's output files and diff (diff returns nonzero on different)
+# compp's default output is formatted with c-format-stream so
+$(TEST_OUT_COMPP_DIR)/%.c: $(TEST_IN_DIR)/%.c $(TEST_OUT_CPP_DIR)/%.c all
+	$(BIN_DRIVER) $< -o $@
+	diff $< $(word 2, $^)
 
-# we rely here on the test input/output naming scheme described above
-check: $(TEST_OBJ) $(TEST_COMPP_OBJ)
-	@./run_tests.sh $(TEST_OBJ)
+check: $(TEST_COMPP_OBJ)
 
 install: all
-	@echo "error: no install target yet" 1>&2
-	@exit -1
+	@npm install -g

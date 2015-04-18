@@ -5,13 +5,12 @@
   "license": "GPL v3",
   "author": "Danny McClanahan <danieldmcclanahan@gmail.com>",
   "scripts": {
-    "prepublish": "make",
     "test": "make check"
   },
   "bin": {
-    "compp": "./compp"
+    "compp": "bin/compp"
   },
-  "main": "obj/analyzeLines.js",
+  "main": "lib/compp/analyzeLines.js",
   "repository": {
     "type": "git",
     "url": "git://github.com/cosmicexplorer/compp.git"
@@ -23,6 +22,10 @@
     "compost"
   ],
   "devDependencies": {
-    "coffee-script": "1.9.x"
+    "coffee-script": "1.9.x",
+    "c-format-stream": "0.0.x"
+  },
+  "dependencies": {
+    "c-format-stream": "0.0.x"
   }
 }

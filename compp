@@ -1,5 +1,0 @@
-#!/bin/sh
-
-WD=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-
-node "$WD/../lib/node_modules/compp/obj/compp.js" $@

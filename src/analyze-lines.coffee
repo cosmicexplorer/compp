@@ -195,19 +195,19 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
         prevInFileStream = opts.inFileStream
         # stop reading this input stream while reading another (the header)
         prevInFileStream.pause()
-        analyzeLines(filePath, fs.createReadStream(filePath), opts)
-          .pipe(outStream)
-          .on 'end', -> # now start again
-            prevInFileStream.unpause()
-            console.error "RETURN:"
-            console.error "FILE: #{opts.file}: NEW: #{prevFile}"
-            console.error "LINE: #{opts.line}: NEW: #{prevLine}"
-            opts.file = prevFile
-            opts.line = prevLine
-            opts.inFileStream = prevInFileStream
-            matches = restOfLine.match backslashNewlineRegex
-            opts.line += matches.length if matches
-            ++opts.line
+        newPipe = analyzeLines(filePath, fs.createReadStream(filePath), opts)
+        newPipe.pipe(outStream)
+        newPipe.on 'end', -> # now start again
+          prevInFileStream.unpause()
+          console.error "RETURN:"
+          console.error "FILE: #{opts.file}: NEW: #{prevFile}"
+          console.error "LINE: #{opts.line}: NEW: #{prevLine}"
+          opts.file = prevFile
+          opts.line = prevLine
+          opts.inFileStream = prevInFileStream
+          matches = restOfLine.match backslashNewlineRegex
+          opts.line += matches.length if matches
+          ++opts.line
         found = yes
       catch err
         res = null
@@ -568,7 +568,7 @@ analyzeLines = (file, fileStream, opts) ->
   lineStream.on 'line', (line) ->
     processLine line, outStream, opts, inComment, dirname
   lineStream.on 'end', ->
-    cleanupStream outStream, opts
+    # cleanupStream outStream, opts
     outStream.emit 'end'
   return outStream
 
