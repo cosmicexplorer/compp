@@ -36,6 +36,7 @@ systemHeaderRegex = /^\s*<.+>/g
 localHeaderRegex = /^\s*".+"/g
 stripSideCaratsRegex = /[<>]/g
 stripQuotesRegex = /"/g
+allowedConditionalChars = /[^0-9\(\)!%\^&\*\-\+\|\/=~<>\\\s]/g
 
 # SUPER MEGA HACK TO GET INCLUDE DIRECTORIES
 
@@ -43,6 +44,7 @@ stripQuotesRegex = /"/g
 sysIncludeDirs = [
   "/usr/local/include"
   "/usr/include"
+  "/usr/include/linux"
   ]
 localIncludeDirs = []
 
@@ -175,21 +177,36 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
       try
         filePath = path.join(includeDir, sysHeader)
         console.error filePath
-        res = fs.statSync(filePath)
+        res = fs.statSync(filePath) # throws if dne
+        # FIXME:
+        # while we wish we could just throw in a clone of the current opts as an
+        # argument instead of destructively modifying 'opts', we also wish to
+        # grab the #defines and #undefs from the header file and apply it to
+        # all succeeding files as well; so we must modify opts. however, we do
+        # wish to keep the old file and line characteristics, so we save and
+        # revert those here. this could be mitigated by having analyzeLines
+        # return the modified opts, for example
+        console.error "FOUND: #{filePath}"
         prevFile = opts.file
         prevLine = opts.line
+        prevInFileStream = opts.inFileStream
+        # stop reading this input stream while reading another (the header)
+        prevInFileStream.pause()
         analyzeLines(filePath, fs.createReadStream(filePath), opts)
-          .pipe(outStream)
+          .pipe(outStream).on 'end', -> # now start again
+            prevInFileStream.unpause()
         # need to async await this
         opts.file = prevFile
         opts.line = prevLine
+        opts.inFileStream = prevInFileStream
         found = yes
       catch err
-        console.error "NOT FOUND: #{err}"
+        console.error "NOT_FOUND: #{err}"
         res = null
       if found
         break
     if not found
+      opts.inFileStream.close()
       throwError opts.file, line, opts.line, 2,
       "Include file <#{sysHeader}> not found."
   # for includeDir in opts.includes
@@ -305,7 +322,7 @@ doIfCondMath = (str, opts, line) ->
   str = str.replace charInQuotesRegex, (str, g1) ->
     g1.charCodeAt(0)
   # allowed characters
-  res = /[^0-9\(\)!%\^&\*\-\+\|\/=~<>]/g.exec str
+  res = allowedConditionalChars.exec str
   if res
     throwError opts.file, line, opts.line, 2,
     "invalid character in preprocessor conditional: #{res[0]}"
@@ -341,7 +358,7 @@ processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
     restOfLine = applyDefines restOfLine, opts.defines, opts, [], line
     boolResult = doIfCondMath restOfLine, opts, line
     if directive is "if"        # stick a new one on there
-      opts.ifStack[opts.ifStack.length - 1].push
+      opts.ifStack.push
         hasBeenTrue: boolResult
         isCurrentlyTrue: boolResult
         ifLine: opts.line
@@ -517,6 +534,7 @@ analyzeLines = (file, fileStream, opts) ->
   opts.line = 1
   opts.file = file
   opts.isInComment = no
+  opts.inFileStream = fileStream
   # get pwd of file
   dirname = path.dirname file
   # initialize streams
@@ -544,6 +562,7 @@ analyzeLines = (file, fileStream, opts) ->
     processLine line, outStream, opts, inComment, dirname
   lineStream.on 'end', ->
     cleanupStream outStream, opts
+    outStream.emit 'end'
   return outStream
 
 module.exports = analyzeLines
