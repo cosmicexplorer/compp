@@ -17,7 +17,7 @@ notWhitespaceRegex = /[^\s]/g
 leadingWhitespaceRegex = /^\s+/g
 trailingWhitespaceRegex = /\s+$/g
 whitespaceRegex = /\s/g
-multipleWhitespaceRegex = /\s\s+/g
+multipleWhitespaceRegex = /\s+/g
 hashRegex = /#/g
 # matches //-style comments until backslash-newline
 C99CommentBackslashRegex = /\/\/.*\\\n/g
@@ -195,6 +195,8 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
         prevLineStream = opts.lineStream
         # stop reading this input stream while reading another (the header)
         prevLineStream.pause()
+        # TODO: make sure a file can only be included x times, and if included
+        # more than x times, then error out
         newPipe = analyzeLines(filePath, fs.createReadStream(filePath), opts)
         newPipe.pipe(outStream)
         newPipe.on 'end', -> # now start again
