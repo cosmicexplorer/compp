@@ -4,38 +4,49 @@
 # as if a new line had not been encountered. to be used in a c preprocessor and
 # applications with similar needs
 
-# native modules
-util = require 'util'
 Transform = require('stream').Transform
 
-ConcatBackslashNewlinesStream = ->
-  if not @ instanceof ConcatBackslashNewlinesStream
-    return new ConcatBackslashNewlinesStream
-  else
-    Transform.call @, readableObjectMode: true
-    @heldLines = []
-    @prevChar = ""
+module.exports =
+class ConcatBackslashNewlinesStream extends Transform
+  constructor: ->
+    if not @ instanceof ConcatBackslashNewlinesStream
+      return new ConcatBackslashNewlinesStream
+    else
+      Transform.call @, readableObjectMode: true
+      @heldLines = []
+      @prevChar = ""
 
-util.inherits ConcatBackslashNewlinesStream, Transform
+    # emit 'end' on end of input
+    cbEnd = =>
+      @emit 'end'
+    # same for 'error'
+    cbError = (err) =>
+      @emit 'error'
+    @on 'pipe', (src) =>
+      src.on 'end', cbEnd
+      src.on 'error', cbError
+    @on 'unpipe', (src) =>
+      src.removeListener 'end', cbEnd
+      src.removeListener 'error', cbError
 
-ConcatBackslashNewlinesStream.prototype.transformProto =
-  (chunk, encoding, callback) ->
-    str = chunk.toString()
+  baseTransformFunc: (str) ->
     for c in str
       @heldLines.push c
       if c is "\n" and @prevChar isnt "\\"
         @emit 'line', @heldLines.join("")
+        @push @heldLines.join("")
         @heldLines = []
-        # in the event of a backslash-newline, we let the processLine functions
-        # in analyzeLines.coffee handle it appropriately
-        # we do this so that line numbers on errors can be reported accurately
       @prevChar = c
-    @push(chunk)                # allow for piping (lol)
-    callback?()
 
-# leave out _flush for now, doesn't seem to be useful
-# TODO: is _flush useful for this input?
-ConcatBackslashNewlinesStream.prototype._transform =
-  ConcatBackslashNewlinesStream.prototype.transformProto
+  _transform: (chunk, enc, cb) ->
+    str = chunk.toString()
+    @baseTransformFunc str
+    cb?()
 
-module.exports = ConcatBackslashNewlinesStream
+  _flush: (cb) ->
+    finalStr = @heldLines.join("")
+    if finalStr.charAt(finalStr.length - 1) isnt "\n"
+      finalStr += "\n"
+    @emit 'line', finalStr
+    @push finalStr
+    cb?()

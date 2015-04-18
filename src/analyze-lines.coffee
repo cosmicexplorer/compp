@@ -191,8 +191,6 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
         console.error "FOUND: #{filePath}"
         prevFile = opts.file
         prevLine = opts.line
-        prevInFileStream = opts.inFileStream
-        prevLineStream = opts.lineStream
         # stop reading this input stream while reading another (the header)
         prevLineStream.pause()
         # TODO: make sure a file can only be included x times, and if included
@@ -206,8 +204,6 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
           console.error "LINE: #{opts.line}: NEW: #{prevLine}"
           opts.file = prevFile
           opts.line = prevLine
-          opts.inFileStream = prevInFileStream
-          opts.lineStream = prevLineStream
           matches = restOfLine.match backslashNewlineRegex
           opts.line += matches.length if matches
           ++opts.line
@@ -217,7 +213,6 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
       if found
         break
     if not found
-      opts.inFileStream.close()
       throwError opts.file, line, opts.line, defineErrorCol,
       "Include file <#{sysHeader}> not found."
   # for includeDir in opts.includes
@@ -227,8 +222,8 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
 addFunctionMacro = (defineToken, lineAfterToken, opts, line) ->
   args = lineAfterToken.match(parentheticalExprRegex)?[0]
   if not args
-    throwError opts.file, lin,
-    opts.line, defineErrorCol, "Function-like macro construction has no closing paren."
+    throwError opts.file, lin, opts.line, defineErrorCol,
+    "Function-like macro construction has no closing paren."
   # apparently macros can have 0 arguments lol
   argsArr = (args.match argumentRegex or []).map (s) ->
     s.replace parenCommaWhitespaceRegex, ""
@@ -553,13 +548,11 @@ analyzeLines = (file, fileStream, opts) ->
   opts.line = 1
   opts.file = file
   opts.isInComment = no
-  opts.inFileStream = fileStream
   # get pwd of file
   dirname = path.dirname file
   # initialize streams
   formatStream = new ConcatBackslashNewlinesStream
   lineStream = fileStream.pipe(formatStream)
-  opts.lineStream = lineStream
   outStream = new stream.PassThrough()
   # stack of #if directives
   # each element is laid out as:
@@ -579,10 +572,8 @@ analyzeLines = (file, fileStream, opts) ->
   fileStream.on 'error', (err) ->
     console.error "Error in reading input file: #{file}."
     throw err
-  lineStream.on 'line', (line) ->
-    processLine line, outStream, opts, inComment, dirname
-  # fileStream.on 'end', ->
-  #   fileStream.emit 'end'
+  lineStream.on 'data', (chunk) ->
+    processLine chunk.toString(), outStream, opts, inComment, dirname
   lineStream.on 'end', ->
     # cleanupStream outStream, opts
     outStream.emit 'end'

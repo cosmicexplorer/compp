@@ -54,7 +54,7 @@ distclean: clean
 
 # let's make those tests
 $(TEST_OUT_CPP_DIR)/%.c: $(TEST_IN_DIR)/%.c all
-	cpp $< -P | $(FORMAT_OUT) - $@ -n0
+	cpp $< -P | $(FORMAT_OUT) - $@ -n0 -s2
 # create compp's output files and diff (diff returns nonzero on different)
 # compp's default output is formatted with c-format-stream within the process
 $(TEST_OUT_COMPP_DIR)/%.c: $(TEST_IN_DIR)/%.c $(TEST_OUT_CPP_DIR)/%.c all
