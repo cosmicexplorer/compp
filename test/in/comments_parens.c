@@ -10,9 +10,9 @@
           */ (4)
 //#undef E
 
-/* #pragma \ */
-/*   VERSION \ */
-/*   "Software Product, Version 12345.A.01.05" */
+#pragma \
+  VERSION \
+  "Software Product, Version 12345.A.01.05"
 
 #define A (2 + 3
 

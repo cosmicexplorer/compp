@@ -7,7 +7,7 @@ ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
 
 # regexes
 directiveRegex = /^\s*#\s*[a-z_]+/g
-tokenRegex = /\b[a-zA-Z_0-9]+\b/g
+tokenRegex = /\b[a-zA-Z_][a-zA-Z0-9_]{0,31}\b/g
 numberRegex = /[0-9]+/g
 backslashNewlineRegex = /\\\n/g
 stringInQuotes = /".*"/g
@@ -17,6 +17,7 @@ notWhitespaceRegex = /[^\s]/g
 leadingWhitespaceRegex = /^\s+/g
 trailingWhitespaceRegex = /\s+$/g
 whitespaceRegex = /\s/g
+multipleWhitespaceRegex = /\s\s+/g
 hashRegex = /#/g
 # matches //-style comments until backslash-newline
 C99CommentBackslashRegex = /\/\/.*\\\n/g
@@ -36,7 +37,7 @@ systemHeaderRegex = /^\s*<.+>/g
 localHeaderRegex = /^\s*".+"/g
 stripSideCaratsRegex = /[<>]/g
 stripQuotesRegex = /"/g
-allowedConditionalChars = /[^0-9\(\)!%\^&\*\-\+\|\/=~<>\\\s]/g
+disallowedConditionalChars = /[^0-9\(\)!%\^&\*\-\+\|\/=~<>\\\s]/g
 
 # constants
 defineErrorCol = 2
@@ -52,26 +53,24 @@ sysIncludeDirs = [
   ]
 localIncludeDirs = []
 
-try
-  res = fs.statSync "/usr/lib/gcc"
-  if not res.isDirectory()
-    throw "gcc is not a folder for some reason"
-catch err
-  throw new Error "gcc not installed or something, idk: #{err}"
 # now assuming gcc dirs exist
 # gcc version dirs
-gccVersionDirs = (fs.readdirSync "/usr/lib/gcc").map((inode) ->
+gccArchDirs = fs.readdirSync("/usr/lib/gcc").map((inode) ->
   path.join "/usr/lib/gcc", inode)
   .filter((inode) ->
     try   # in case it doesn't exist (even though the previous line checks that)
       (fs.statSync inode).isDirectory()
     catch err
       return false)
-# actual include directories
-for dir in gccVersionDirs
-  # we're not going to check that they still exist here (race condition)
-  sysIncludeDirs.push (path.join dir, "include")
-  sysIncludeDirs.push (path.join dir, "include-fixed")
+# now get each version of gcc
+gccVersionDirs =
+  (fs.readdirSync gccADir for gccADir in gccArchDirs).map((verDirArr) ->
+    path.join gccADir, verDir for verDir in verDirArr).reduce (arr1, arr2) ->
+    arr1.concat arr2
+# finally, add to system includes
+sysIncludeDirs = (path.join dir, "include" for dir in gccVersionDirs)
+  .concat sysIncludeDirs
+
 
 # utility functions
 # throw error at file, line, col and exit "gracefully"
@@ -193,18 +192,20 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
         prevFile = opts.file
         prevLine = opts.line
         prevInFileStream = opts.inFileStream
+        prevLineStream = opts.lineStream
         # stop reading this input stream while reading another (the header)
-        prevInFileStream.pause()
+        prevLineStream.pause()
         newPipe = analyzeLines(filePath, fs.createReadStream(filePath), opts)
         newPipe.pipe(outStream)
         newPipe.on 'end', -> # now start again
-          prevInFileStream.unpause()
+          prevLineStream.unpause()
           console.error "RETURN:"
           console.error "FILE: #{opts.file}: NEW: #{prevFile}"
           console.error "LINE: #{opts.line}: NEW: #{prevLine}"
           opts.file = prevFile
           opts.line = prevLine
           opts.inFileStream = prevInFileStream
+          opts.lineStream = prevLineStream
           matches = restOfLine.match backslashNewlineRegex
           opts.line += matches.length if matches
           ++opts.line
@@ -262,8 +263,8 @@ addDefine = (directive, restOfLine, outStream, opts, line) ->
 
 removeDefine = (directive, restOfLine, outStream, opts, line) ->
   undefToken = restOfLine.match(tokenRegex)?[0]
-  if undefToken
-    # FIXME: this should NOT applyDefines to anything
+  # FIXME: make throwError emit an error as we pass down the pipeline!
+  if not undefToken
     throwError opts.file, line, opts.line, defineErrorCol,
     "No token given to #undef."
   delete opts.defines[undefToken]
@@ -322,20 +323,31 @@ ifDefinedCallback = (opts, line) ->
 
 # perform mathematical operations according to c syntax
 doIfCondMath = (str, opts, line) ->
+  # first remove all macros
+  str = applyDefines str, opts.defines, opts, [], line
   str = str.replace backslashNewlineRegex, ""
   # sanitize input
   # replace character expressions with their ascii values
   str = str.replace charInQuotesRegex, (str, g1) ->
     g1.charCodeAt(0)
   # allowed characters
-  res = allowedConditionalChars.exec str
+  res = str.match disallowedConditionalChars or
+        # after applyDefines, there should be no tokens left
+        str.match tokenRegex
   if res
+    outStr = str.match(disallowedConditionalChars)?[0] or
+             str.match(tokenRegex)[0]
+    outExpansion = str.replace(multipleWhitespaceRegex, " ")
+      .replace(trailingWhitespaceRegex, "").replace(leadingWhitespaceRegex, "")
     throwError opts.file, line, opts.line, defineErrorCol,
-    "invalid character in preprocessor conditional: #{res[0]}"
+    "invalid token in preprocessor conditional: '#{outStr}' in expansion:\n" +
+    "'#{outExpansion}':"
   else
     try
+      # console.error str
       resVal = eval str
     catch err
+      console.error str
       throwError opts.file, line, opts.line, defineErrorCol,
       "invalid expression in preprocessor conditional: #{err}"
     return resVal > 0
@@ -345,7 +357,8 @@ processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
     # no 'else' for this if/else if chain, but that's because every branch
     # either quits the process or returns
     if opts.ifStack.length is 0
-      throwError opts.file, line, opts.line, defineErrorCol, "#elif without opening #if"
+      throwError opts.file, line, opts.line, defineErrorCol,
+      "#elif without opening #if"
     else if opts.ifStack[opts.ifStack.length - 1].hasBeenTrue
       opts.ifStack[opts.ifStack.length - 1].isCurrentlyTrue = no
       return
@@ -360,8 +373,6 @@ processIfConstExpr = (directive, restOfLine, outStream, opts, dirname, line) ->
     # (this does not interact with the previous regex)
     restOfLine = restOfLine.replace /\bdefined\s*(\w+)/g,
       ifDefinedCallback(opts, line)
-    # now expand all other macros
-    restOfLine = applyDefines restOfLine, opts.defines, opts, [], line
     boolResult = doIfCondMath restOfLine, opts, line
     if directive is "if"        # stick a new one on there
       opts.ifStack.push
@@ -546,6 +557,7 @@ analyzeLines = (file, fileStream, opts) ->
   # initialize streams
   formatStream = new ConcatBackslashNewlinesStream
   lineStream = fileStream.pipe(formatStream)
+  opts.lineStream = lineStream
   outStream = new stream.PassThrough()
   # stack of #if directives
   # each element is laid out as:
@@ -567,6 +579,8 @@ analyzeLines = (file, fileStream, opts) ->
     throw err
   lineStream.on 'line', (line) ->
     processLine line, outStream, opts, inComment, dirname
+  # fileStream.on 'end', ->
+  #   fileStream.emit 'end'
   lineStream.on 'end', ->
     # cleanupStream outStream, opts
     outStream.emit 'end'

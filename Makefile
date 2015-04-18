@@ -2,8 +2,8 @@
 
 # required to build
 NPM_BIN = $(shell npm bin)
-FORMAT_OUT = c-format
-COFFEE_CC = coffee
+FORMAT_OUT = $(NPM_BIN)/c-format
+COFFEE_CC = $(NPM_BIN)/coffee
 
 # put source inputs in src/ and make them coffee files
 SRC_DIR = src
@@ -30,6 +30,7 @@ TEST_CPP_OBJ = $(patsubst $(TEST_IN_DIR)/%.c, \
 TEST_COMPP_OBJ = $(patsubst $(TEST_IN_DIR)/%.c, \
 	$(TEST_OUT_COMPP_DIR)/%.c, $(TEST_IN))
 
+# lol should probs have these
 DEPS = node_modules
 
 all: $(BIN_DRIVER)
@@ -39,7 +40,7 @@ $(BIN_DRIVER): $(DEPS) $(OBJ)
 	@chmod +x $@
 
 $(OBJ_DIR)/%.js: $(SRC_DIR)/%.coffee
-	coffee -o $(OBJ_DIR) -bc $<
+	$(COFFEE_CC) -o $(OBJ_DIR) -bc $<
 
 $(DEPS):
 	@echo "Installing required packages..."
@@ -53,9 +54,9 @@ distclean: clean
 
 # let's make those tests
 $(TEST_OUT_CPP_DIR)/%.c: $(TEST_IN_DIR)/%.c all
-	cpp $< -P | $(NPM_BIN)/$(FORMAT_OUT) - $@ -n0
+	cpp $< -P | $(FORMAT_OUT) - $@ -n0
 # create compp's output files and diff (diff returns nonzero on different)
-# compp's default output is formatted with c-format-stream so
+# compp's default output is formatted with c-format-stream within the process
 $(TEST_OUT_COMPP_DIR)/%.c: $(TEST_IN_DIR)/%.c $(TEST_OUT_CPP_DIR)/%.c all
 	$(BIN_DRIVER) $< -o $@
 	diff $(word 2, $^) $@
