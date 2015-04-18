@@ -2,7 +2,8 @@
 
 # required to build
 NPM_BIN = $(shell npm bin)
-FORMAT_OUTPUT_EXE = c-format
+FORMAT_OUT = c-format
+COFFEE_CC = coffee
 
 # put source inputs in src/ and make them coffee files
 SRC_DIR = src
@@ -52,7 +53,7 @@ distclean: clean
 
 # let's make those tests
 $(TEST_OUT_CPP_DIR)/%.c: $(TEST_IN_DIR)/%.c all
-	cpp $< -P | $(NPM_BIN)/$(FORMAT_OUTPUT_EXE) - $@ -n0
+	cpp $< -P | $(NPM_BIN)/$(FORMAT_OUT) - $@ -n0
 # create compp's output files and diff (diff returns nonzero on different)
 # compp's default output is formatted with c-format-stream so
 $(TEST_OUT_COMPP_DIR)/%.c: $(TEST_IN_DIR)/%.c $(TEST_OUT_CPP_DIR)/%.c all
@@ -61,5 +62,5 @@ $(TEST_OUT_COMPP_DIR)/%.c: $(TEST_IN_DIR)/%.c $(TEST_OUT_CPP_DIR)/%.c all
 
 check: $(TEST_COMPP_OBJ)
 
-install: all
+install:
 	@npm install -g
