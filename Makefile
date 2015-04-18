@@ -58,7 +58,7 @@ $(TEST_OUT_CPP_DIR)/%.c: $(TEST_IN_DIR)/%.c all
 # compp's default output is formatted with c-format-stream so
 $(TEST_OUT_COMPP_DIR)/%.c: $(TEST_IN_DIR)/%.c $(TEST_OUT_CPP_DIR)/%.c all
 	$(BIN_DRIVER) $< -o $@
-	diff $< $(word 2, $^)
+	diff $(word 2, $^) $@
 
 check: $(TEST_COMPP_OBJ)
 
