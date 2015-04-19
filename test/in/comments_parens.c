@@ -1,11 +1,11 @@
-#include <stdio.h>
+#include "test.h"
 
 #define C
 /* yay */
 /* yeah
  * woo
  */
-// nice \
+// nice
 #define E /* lol \
           */ (4)
 //#undef E
@@ -16,6 +16,7 @@
 
 #define A (2 + 3
 
+int F = 3;
 #define F (4 + F)
 #define x (4 + y)
 #define y (2 * x)
@@ -27,15 +28,15 @@
 
 char * a = CA;
 
-/* #ifdef CA */
+#ifdef CA
 int main() {
   int a = x + y + E + A);
   int b = y + x + F;
   printf("a: %d\n", a);
   printf(CA(a) "\n");
 }
-/* #else */
+#else
 int main() {
   printf("hello\n");
 }
-/* #endif */
+#endif  /* CA */

@@ -1,7 +1,8 @@
 # native modules
 fs = require 'fs'
 path = require 'path'
-stream = require 'stream'
+# npm modules
+CFormatStream = require 'c-format-stream'
 # local modules
 ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
 
@@ -121,9 +122,10 @@ applyDefines = (str, defines, opts, macrosExpanded, line) ->
     defineFunctionRegexStr = "\\b#{defineStr}\\([^\\)]*\\)"
     if ((not macrosExpanded) or
        (macrosExpanded.indexOf(defineStr) is -1))
-      definesToSend = []
       if macrosExpanded
         definesToSend = macrosExpanded
+      else
+        definesToSend = []
       # expand object-like macros
       if defineVal.type is "object" and
          # this regex construction is safe because valid tokens for #defines
@@ -174,50 +176,64 @@ insertInclude = (directive, restOfLine, outStream, opts, dirname, line) ->
   localHeader = restOfLine.match(localHeaderRegex)?[0]
   found = no
   if sysHeader
-    sysHeader = sysHeader.replace leadingWhitespaceRegex, ""
-    sysHeader = sysHeader.replace stripSideCaratsRegex, ""
-    for includeDir in sysIncludeDirs
-      try
-        filePath = path.join(includeDir, sysHeader)
-        res = fs.statSync(filePath) # throws if dne
-        # FIXME:
-        # while we wish we could just throw in a clone of the current opts as an
-        # argument instead of destructively modifying 'opts', we also wish to
-        # grab the #defines and #undefs from the header file and apply it to
-        # all succeeding files as well; so we must modify opts. however, we do
-        # wish to keep the old file and line characteristics, so we save and
-        # revert those here. this could be mitigated by having analyzeLines
-        # return the modified opts, for example
-        console.error "FOUND: #{filePath}"
-        prevFile = opts.file
-        prevLine = opts.line
-        # stop reading this input stream while reading another (the header)
-        prevLineStream.pause()
-        # TODO: make sure a file can only be included x times, and if included
-        # more than x times, then error out
-        newPipe = analyzeLines(filePath, fs.createReadStream(filePath), opts)
-        newPipe.pipe(outStream)
-        newPipe.on 'end', -> # now start again
-          prevLineStream.unpause()
-          console.error "RETURN:"
-          console.error "FILE: #{opts.file}: NEW: #{prevFile}"
-          console.error "LINE: #{opts.line}: NEW: #{prevLine}"
-          opts.file = prevFile
-          opts.line = prevLine
-          matches = restOfLine.match backslashNewlineRegex
-          opts.line += matches.length if matches
-          ++opts.line
-        found = yes
-      catch err
-        res = null
-      if found
-        break
-    if not found
-      throwError opts.file, line, opts.line, defineErrorCol,
-      "Include file <#{sysHeader}> not found."
-  # for includeDir in opts.includes
-  #   fileStat = fs.statSync path.join includeDir, ""
-  # outStream.write line
+    headerFilename = sysHeader.replace(leadingWhitespaceRegex, "")
+      .replace(trailingWhitespaceRegex, "").replace(stripSideCaratsRegex, "")
+    headerArr = sysIncludeDirs
+  else if localHeader
+    headerFilename = localHeader.replace(leadingWhitespaceRegex, "")
+      .replace(trailingWhitespaceRegex, "").replace(stripQuotesRegex, "")
+    headerArr = opts.includes
+  else
+    throwError opts.file, line, opts.line, defineErrorCol,
+    "#include without header"
+  for includeDir in headerArr
+    try
+      filePath = path.join(includeDir, headerFilename)
+      res = fs.statSync(filePath) # throws if dne
+      found = yes
+      # FIXME:
+      # while we wish we could just throw in a clone of the current opts as an
+      # argument instead of destructively modifying 'opts', we also wish to
+      # grab the #defines and #undefs from the header file and apply it to
+      # all succeeding files as well; so we must modify opts. however, we do
+      # wish to keep the old file and line characteristics, so we save and
+      # revert those here. this could be mitigated by having analyzeLines
+      # return the modified opts, for example
+      console.error "FOUND: #{filePath}"
+      prevFile = opts.file
+      prevLine = opts.line
+      prevLineStream = opts.lineStream
+      prevCallback = opts.dataCallback
+      # stop reading this input stream while reading another (the header)
+      prevLineStream.pause()
+      # TODO: make sure a file can only be included x times, and if included
+      # more than x times, then error out
+      newPipe = analyzeLines(filePath, fs.createReadStream(filePath), opts)
+      newPipe.pipe outStream
+      newPipe.pipe process.stderr
+      newPipe.removeAllListeners 'end' # so the fs writeStream doesn't close
+      newPipe.on 'end', -> # now start again
+        newPipe.unpipe outStream
+        newPipe.unpipe process.stderr
+        prevLineStream.on 'data', prevCallback
+        prevLineStream.resume()
+        console.error "RETURN:"
+        console.error "FILE: #{opts.file}, NEW: #{prevFile}"
+        console.error "LINE: #{opts.line}, NEW: #{prevLine}"
+        opts.file = prevFile
+        opts.line = prevLine
+        opts.lineStream = prevLineStream
+        opts.dataCallback = prevCallback
+        matches = restOfLine.match backslashNewlineRegex
+        opts.line += matches.length if matches
+        ++opts.line
+    catch err
+      res = null
+    if found
+      break
+  if not found
+    throwError opts.file, line, opts.line, defineErrorCol,
+    "Include file #{headerFilename} not found."
 
 addFunctionMacro = (defineToken, lineAfterToken, opts, line) ->
   args = lineAfterToken.match(parentheticalExprRegex)?[0]
@@ -277,7 +293,7 @@ processError = (directive, restOfLine, opts, line) ->
 
 processPragma = (directive, restOfLine, outStream, opts, line) ->
   # we don't do anything here, but it's left here for clarity
-  outStream.write line
+  outStream.write(line.replace(backslashNewlineRegex, " "))
   matches = restOfLine.match backslashNewlineRegex
   opts.line += matches.length if matches
   ++opts.line
@@ -332,6 +348,11 @@ doIfCondMath = (str, opts, line) ->
         # after applyDefines, there should be no tokens left
         str.match tokenRegex
   if res
+    # FIXME: remove!
+    if str.match /BSD/g
+      return no
+    else
+      return yes
     outStr = str.match(disallowedConditionalChars)?[0] or
              str.match(tokenRegex)[0]
     outExpansion = str.replace(multipleWhitespaceRegex, " ")
@@ -341,10 +362,8 @@ doIfCondMath = (str, opts, line) ->
     "'#{outExpansion}':"
   else
     try
-      # console.error str
       resVal = eval str
     catch err
-      console.error str
       throwError opts.file, line, opts.line, defineErrorCol,
       "invalid expression in preprocessor conditional: #{err}"
     return resVal > 0
@@ -440,7 +459,7 @@ processIf = (directive, restOfLine, outStream, opts, dirname, line) ->
   ++opts.line
 
 processSourceLine = (line, outStream, opts, origLine) ->
-  outLine = applyDefines line, opts.defines, opts, origLine
+  outLine = applyDefines line, opts.defines, opts, [], origLine
   outStream.write outLine
   matches = line.match backslashNewlineRegex
   opts.line += matches.length if matches
@@ -533,16 +552,22 @@ processLine = (line, outStream, opts, inComment, dirname) ->
           opts.line += matches.length
       ++opts.line
 
-# this function sets up input and processing streams and calls processLine to
-# write the appropriate output to outStream; exposed to the frontend
-# example opts:
-# opts: {
-#  defines: { define1: null, define2: 2 },
-#  includes: ['/mnt/usr/include']
-#  line: 3
-#  file: "test.c"
-#  isInComment: no
-# }
+###
+this function sets up input and processing streams and calls processLine to
+write the appropriate output to outStream; this is what is exposed to the
+frontend. ifStack is detailed below. TODO: detail the structure of defines
+
+example opts:
+opts: {
+ defines: { define1: {}, define2: {} },
+ includes: ['/mnt/usr/include']
+ line: 3
+ file: "test.c"
+ isInComment: no
+ ifStack: []
+}
+
+###
 analyzeLines = (file, fileStream, opts) ->
   # initialize opts
   opts.line = 1
@@ -551,20 +576,26 @@ analyzeLines = (file, fileStream, opts) ->
   # get pwd of file
   dirname = path.dirname file
   # initialize streams
-  formatStream = new ConcatBackslashNewlinesStream
-  lineStream = fileStream.pipe(formatStream)
-  outStream = new stream.PassThrough()
-  # stack of #if directives
-  # each element is laid out as:
-  # {
-  #   hasBeenTrue: true
-  #   isCurrentlyTrue: no
-  #   ifLine: 342
-  #   ifFile: "test.c"
-  #   ifText: "#ifdef ASDF"
-  # }
-  # hasBeenTrue is true so we know whether to process "else" statements
-  # isCurrentlyTrue tells us whether we're processing the current branch of if
+  lineStream = fileStream.pipe(new ConcatBackslashNewlinesStream)
+  opts.lineStream = lineStream
+  outStream = new require('stream').PassThrough()
+  # TODO: replace above line with below
+  # outStream = new CFormatStream({
+  #   numNewlinesToPreserve: 0,
+  #   indentationString: "  "})
+  ###
+  stack of #if directives
+  each element is laid out as:
+  {
+    hasBeenTrue: true
+    isCurrentlyTrue: no
+    ifLine: 342
+    ifFile: "test.c"
+    ifText: "#ifdef ASDF"
+  }
+  hasBeenTrue is true so we know whether to process "else" statements
+  isCurrentlyTrue tells us whether we're processing the current branch of if
+  ###
   if not opts.ifStack
     opts.ifStack = []
   # whether currently in comment
@@ -572,10 +603,10 @@ analyzeLines = (file, fileStream, opts) ->
   fileStream.on 'error', (err) ->
     console.error "Error in reading input file: #{file}."
     throw err
-  lineStream.on 'data', (chunk) ->
+  opts.dataCallback = (chunk) ->
     processLine chunk.toString(), outStream, opts, inComment, dirname
+  lineStream.on 'data', opts.dataCallback
   lineStream.on 'end', ->
-    # cleanupStream outStream, opts
     outStream.emit 'end'
   return outStream
 
