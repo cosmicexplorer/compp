@@ -112,8 +112,12 @@ class PreprocessStream extends Transform
     ###
     @ifStack = []
 
-  throwError: (colNum, errText) ->
-    errStr = "#{@filename}:#{@line}:#{colNum}: error: #{errText}\n"
+  getErrObj: (colNum, errText, isWarningOpts) ->
+    if isWarningOpts?.isWarning
+      warnErrStr = "warning"
+    else
+      warnErrStr = "error"
+    errStr = "#{@filename}:#{@line}:#{colNum}: #{warnErrStr}: #{errText}\n"
     errStr += @curLine
     # get the cute little carat, but only if the input spans one line
     if not @curLine.match @constructor.backslashNewlineRegex
@@ -122,21 +126,14 @@ class PreprocessStream extends Transform
       errStr += "^~~\n"
     errObj = new Error(errStr)
     errObj.sourceStream = @constructor.name
-    errObj.isWarning = no
-    @emit 'error', errObj
+    errObj.isWarning = isWarningOpts?.isWarning
+    return errObj
+
+  throwError: (colNum, errText) ->
+    @emit 'error', @getErrObj(colNum, errText, isWarning: no)
 
   throwWarning: (colNum, errText) ->
-    errStr = "#{@filename}:#{@line}:#{colNum}: warning: #{errText}\n"
-    errStr += @curLine
-    # get the cute little carat, but only if the input spans one line
-    if not @curLine.match @constructor.backslashNewlineRegex
-      for i in [1..(colNum - 1)] by 1
-        errStr += " "
-      errStr += "^~~\n"
-    errObj = new Error(errStr)
-    errObj.sourceStream = @constructor.name
-    errObj.isWarning = yes
-    @emit 'error', errObj
+    @emit 'error', @getErrObj(colNum, errText, isWarning: yes)
 
   applyObjectDefine: (str, definesToSend, defineStr, defineVal) ->
     ###
@@ -271,7 +268,8 @@ class PreprocessStream extends Transform
     @src?.pause()
     fs.createReadStream(filePath)
       # this is required
-      .pipe(new ConcatBackslashNewlinesStream)
+      .pipe(new ConcatBackslashNewlinesStream
+        filename: @filename)
       .pipe(headerStream)
       # but don't pipe into CFormatStream; the output of this stream (from @push
       # chunk) should already be going into such a stream
@@ -636,38 +634,43 @@ class PreprocessStream extends Transform
   @defineErrorCol: 2
 
   # regexes
-  @directiveRegex : /^\s*#\s*[a-z_]+/g
-  @tokenRegex : /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g
-  @numberTokenRegex : /\b[0-9]+\b/g
-  @numberRegex : /[0-9]+/g
-  @backslashNewlineRegex : /\\\n/g
-  @stringInQuotes : /".*"/g
+  @directiveRegex: /^\s*#\s*[a-z_]+/g
+  @tokenRegex: /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g
+  @numberTokenRegex: /\b[0-9]+\b/g
+  @numberRegex: /[0-9]+/g
+  @backslashNewlineRegex: /\\\n/g
+  @stringInQuotes: /".*"/g
   # matches all preprocessor conditionals
-  @condRegex : /(if|else)/g
-  @notWhitespaceRegex : /[^\s]/g
-  @leadingWhitespaceRegex : /^\s+/g
-  @trailingWhitespaceRegex : /\s+$/g
-  @whitespaceRegex : /\s/g
-  @multipleWhitespaceRegex : /\s+/g
-  @hashRegex : /#/g
+  @condRegex: /(if|else)/g
+  @notWhitespaceRegex: /[^\s]/g
+  @leadingWhitespaceRegex: /^\s+/g
+  @trailingWhitespaceRegex: /\s+$/g
+  @whitespaceRegex: /\s/g
+  @multipleWhitespaceRegex: /\s+/g
+  @hashRegex: /#/g
   # matches //-style comments until backslash-newline
-  @C99CommentBackslashRegex : /\/\/.*\\\n/g
+  @C99CommentBackslashRegex: /\/\/.*\\\n/g
   # matches //-style comments until end of line
-  @C99CommentNoBackslashRegex : /\/\/.*/g
+  @C99CommentNoBackslashRegex: /\/\/.*/g
   # matches beginning of /*-style comments
-  @slashStarBeginRegex : /\/\*/g
-  @slashStarEndRegex : /\*\//g
+  @slashStarBeginRegex: /\/\*/g
+  @slashStarEndRegex: /\*\//g
   # matches within parentheses
-  @parentheticalExprRegex : /\([^\)]*\)/g
-  @parenCommaWhitespaceRegex : /[\(\),\s]/g
-  @argumentRegex : /[^,]+[,\)]/g
-  @charInQuotesRegex : /'(.)'/g
-  @fileTokenRegex : /\b__FILE__\b/g
-  @lineTokenRegex : /\b__LINE__\b/g
-  @systemHeaderRegex : /^\s*<.+>/g
-  @localHeaderRegex : /^\s*".+"/g
-  @stripSideCaratsRegex : /[<>]/g
-  @stripQuotesRegex : /"/g
-  @disallowedConditionalChars : /[^0-9\(\)!%\^&\*\-\+\|\/=~<>\\\s]/g
-  @definedParensRegex : /\bdefined\s*\(([^\)]*)\)/g
-  @definedSpaceRegex : /\bdefined\s*(\w+)/g
+  @parentheticalExprRegex: /\([^\)]*\)/g
+  @parenCommaWhitespaceRegex: /[\(\),\s]/g
+  @argumentRegex: /[^,]+[,\)]/g
+  @charInQuotesRegex: /'(.)'/g
+  @fileTokenRegex: /\b__FILE__\b/g
+  @lineTokenRegex: /\b__LINE__\b/g
+  @systemHeaderRegex: /^\s*<.+>/g
+  @localHeaderRegex: /^\s*".+"/g
+  @stripSideCaratsRegex: /[<>]/g
+  @stripQuotesRegex: /"/g
+  @disallowedConditionalChars: /[^0-9\(\)!%\^&\*\-\+\|\/=~<>\\\s]/g
+  @definedParensRegex: /\bdefined\s*\(([^\)]*)\)/g
+  @definedSpaceRegex: /\bdefined\s*(\w+)/g
+  # digraph regexes
+  # note that due to the required implementation of digraphs, they must be
+  # separate tokens (hence the \b boundaries); trigraphs do not require this.
+  # this is why trigraph processing is split into
+  # concat-backslash-newline-stream

@@ -94,6 +94,7 @@ module.exports =
     # all the streams used here propagate errors, so an uncaught error will
     # continue onward into the CFormatStream.
     cbns = new comppStreams.ConcatBackslashNewlinesStream
+       filename: opts.argv[0]
     pps = new comppStreams.PreprocessStream(
       opts.argv[0], opts.includes, defines)
     cfs = new comppStreams.CFormatStream
@@ -103,17 +104,19 @@ module.exports =
     # transform stream throws
     cfs.on 'error', (err) ->
       if err.isWarning
+        if err.sourceStream
+          console.error "From #{err.sourceStream}:"
         console.error err.message
+        if err.isTrigraph
+          console.error "Use -t to enable."
       else
-        if err.code is 'ENOENT'   # probably isn't stdin, so assume path works
+        if err.sourceStream
+          console.error err.message
+        else if err.code is 'ENOENT' # probably isn't stdin; assume path works
           console.error "Input file #{err.path} not found."
         else if err.code is 'EISDIR'
           console.error "Input file #{err.path} is a directory."
-        else                      # for errors from our transform streams
-          if err.sourceStream
-            console.error "From #{err.sourceStream}:"
-            console.error err.message
-          else                    # unrecognized error
+        else                    # unrecognized error
             console.error err.stack
         process.exit -1
 

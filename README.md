@@ -5,7 +5,11 @@ compp
 
 A preprocessor for [composter](https://github.com/cosmicexplorer/composter), the trashy C compiler.
 
-Status: currently eliminates backslashes, receives input options, and handles errors in input streams.
+## TODO:
+- better column markings
+- stop cyclical includes
+- digraph/trigraph support
+- get actual system-independent include directories
 
 ## How compliant will this preprocessor be?
 
@@ -13,7 +17,7 @@ I've been reading through the GNU cpp manual quite a bit recently, and I intend 
 
 ## How fast will it be?
 
-Definitely not as fast as GNU cpp, since that's written in C. However, [node streams](https://nodejs.org/api/stream.html) are pretty well-documented and optimized, so I expect compp should be able to at least avoid getting lapped.
+Probably not as fast as GNU cpp, since that's written in C. However, [node streams](https://nodejs.org/api/stream.html) are pretty well-documented and optimized, so I expect compp should be able to at least avoid getting lapped.
 
 ## How do I make it and test it?
 
