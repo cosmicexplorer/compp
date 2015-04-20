@@ -599,7 +599,6 @@ class PreprocessStream extends Transform
 
   _transform: (chunk, enc, cb) ->
     str = chunk.toString()
-    console.error ">-#{str}-<"
     @curLine = str
     @processLine(@curLine)
     cb?()
