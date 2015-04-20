@@ -99,6 +99,8 @@ module.exports =
     cfs = new comppStreams.CFormatStream
       numNewlinesToPreserve: 0
       indentationString: "  "
+    # TODO: add better error management, taking care of all the errors that each
+    # transform stream throws
     cfs.on 'error', (err) ->
       if err.code is 'ENOENT'   # probably isn't stdin
         console.error "Input file #{err.path} not found."
@@ -112,6 +114,10 @@ module.exports =
       .pipe(cbns)
       .pipe(pps)
       .pipe(cfs)
+      # errors on output stream don't propagate to input streams, and errors on
+      # input/transform streams don't propagate to output stream (since we
+      # didn't write fs.createWriteStream), so we deal with this error case
+      # separately
       .pipe(outStream).on 'error', (err) ->
         if err.code is 'EISDIR'
           console.error "Output file #{err.path} is a directory."

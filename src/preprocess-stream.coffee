@@ -135,10 +135,9 @@ class PreprocessStream extends Transform
        str.match(new RegExp(defineObjectRegexStr, "g"))
       definesToSend.push defineStr
       replaceString = @applyDefines defineVal.text, definesToSend
-      return str.replace(new RegExp(defineObjectRegexStr, "g"),
+      str = str.replace(new RegExp(defineObjectRegexStr, "g"),
         replaceString)
-    else
-      return str
+    return str
 
   escapeRegex: (str) ->
     # adding \\b in front and back isn't working for some reason; no clue why
@@ -175,7 +174,7 @@ class PreprocessStream extends Transform
         new RegExp("##{searchStr}"), "\"#{replaceStr}\"")
         # normal replacement
         .replace(new RegExp(searchStr), replaceStr)
-        # use ## to concatenate
+        # use ## to concatenate tokens
         .replace(new RegExp("\\b" + tokenRegStr + "\\s+##\\s+" +
             tokenRegStr + "\\b"), (str, g1, g2) ->
               g1 + g2)
@@ -201,6 +200,7 @@ class PreprocessStream extends Transform
         finalArgArr = []
         for r in tmpArgArr
           finalArgArr.push r.replace(@constructor.parenCommaWhitespaceRegex, "")
+        # sometimes the case of no arguments get parsed strangely
         if finalArgArr.length is 1 and finalArgArr[0] is ""
           finalArgArr = []
         argsArr.push finalArgArr
@@ -211,9 +211,7 @@ class PreprocessStream extends Transform
         curDefText = @getCurFuncDefineText argsArr[i], defineVal, definesToSend
         str = str
           .replace(new RegExp(@escapeRegex(tokensWithArgs[i])), curDefText)
-      return str
-    else
-      return str
+    return str
 
   applyDefines: (str, macrosExpanded) ->
     str = str.replace @constructor.backslashNewlineRegex, ""
