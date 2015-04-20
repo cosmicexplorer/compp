@@ -1,7 +1,14 @@
+# node standard modules
+fs = require 'fs'
+path = require 'path'
+# local modules
+comppGetOpt = require "#{__dirname}/compp-getopt"
+comppStreams = require "#{__dirname}/compp-streams"
+
 # frontend and argument processor for compp
 # calls to analyzeLines to do all the heavy lifting
 module.exports =
-   run : ->
+  run : ->
     ###
     accepts -D, -U, -I, -h, -v, and -o arguments
     note: undefs take precedence over defines, and later defines take precedence
@@ -22,13 +29,6 @@ module.exports =
     process.argv.shift()
     process.argv[0] = "coffee"
 
-    # node standard modules
-    fs = require 'fs'
-    path = require 'path'
-    # local modules
-    comppGetOpt = require "#{__dirname}/compp-getopt"
-    analyzeLines = require "#{__dirname}/analyze-lines"
-
     # parse and sanitize inputs
     opts = comppGetOpt.parseArgsFromArr process.argv
 
@@ -40,7 +40,8 @@ module.exports =
       process.exit 0
 
     if not (0 < opts.argv.length <= 2)
-      console.error "Please input at least one file for preprocessing."
+      console.error "Please input at least one and at most two file(s) " +
+      "for preprocessing."
       process.exit -1
 
     if opts.output.length > 1 or
@@ -80,27 +81,40 @@ module.exports =
     else
       opts.includes.push path.resolve(path.dirname(opts.argv[0]))
 
-    processedOpts =
-      defines: defines
-      includes: opts.includes
-
     if opts.argv[0] is "-"
       inStream = process.stdin
     else
       inStream = fs.createReadStream(opts.argv[0])
 
-    # read from file
-    processedStream = analyzeLines(opts.argv[0], inStream, processedOpts)
-
     if opts.output[0]
       outStream = fs.createWriteStream(opts.output[0])
-      outStream.on 'error', (err) ->
-        console.error "Error in writing to output file: #{opts.output[0]}."
-        throw err
     else
       outStream = process.stdout
-      outStream.on 'error', (err) ->
-        console.error "Error in writing to stdout."
-        throw err
 
-    processedStream.pipe outStream
+    # all the streams used here propagate errors, so an uncaught error will
+    # continue onward into the CFormatStream. here, we will be fastidious and
+    # catch errors at every point.
+    cbns = new comppStreams.ConcatBackslashNewlinesStream
+    cbns.on 'error', (err) ->
+      console.error "concat stream:"
+      console.error err
+      process.exit -1
+    pps = new comppStreams.PreprocessStream(
+      opts.argv[0], opts.includes, defines)
+    pps.on 'error', (err) ->
+      console.error "preprocess stream:"
+      console.error err
+      process.exit -1
+    cfs = new comppStreams.CFormatStream
+      numNewlinesToPreserve: 0
+      indentationString: "  "
+    cfs.on 'error', (err) ->
+      console.error "format stream:"
+      console.error err
+      process.exit -1
+
+    inStream
+      .pipe(cbns)
+      .pipe(pps)
+      .pipe(cfs)
+      .pipe(outStream)

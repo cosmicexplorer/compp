@@ -14,7 +14,7 @@
   VERSION \
   "Software Product, Version 12345.A.01.05"
 
-#define A (2 + 3
+#define A (2 + 3)
 
 int F = 3;
 #define F (4 + F)
@@ -30,7 +30,7 @@ char * a = CA;
 
 #ifdef CA
 int main() {
-  int a = x + y + E + A);
+  int a = x + y + E + A;
   int b = y + x + F;
   printf("a: %d\n", a);
   printf(CA(a) "\n");
