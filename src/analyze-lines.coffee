@@ -60,7 +60,7 @@ gccArchDirs = fs.readdirSync("/usr/lib/gcc").map((inode) ->
   path.join "/usr/lib/gcc", inode)
   .filter((inode) ->
     try   # in case it doesn't exist (even though the previous line checks that)
-      (fs.statSync inode).isDirectory()
+      fs.statSync(inode).isDirectory()
     catch err
       return false)
 # now get each version of gcc

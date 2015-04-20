@@ -13,20 +13,15 @@ class ConcatBackslashNewlinesStream extends Transform
       return new ConcatBackslashNewlinesStream
     else
       Transform.call @, readableObjectMode: true
-      @heldLines = []
-      @prevChar = ""
 
-    # emit 'end' on end of input
-    cbEnd = =>
-      @emit 'end'
-    # same for 'error'
+    @heldLines = []
+    @prevChar = ""
+
     cbError = (err) =>
-      @emit 'error'
+      @emit 'error', err
     @on 'pipe', (src) =>
-      src.on 'end', cbEnd
       src.on 'error', cbError
     @on 'unpipe', (src) =>
-      src.removeListener 'end', cbEnd
       src.removeListener 'error', cbError
 
   baseTransformFunc: (str) ->
