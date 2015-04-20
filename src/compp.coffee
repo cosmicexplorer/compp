@@ -92,29 +92,29 @@ module.exports =
       outStream = process.stdout
 
     # all the streams used here propagate errors, so an uncaught error will
-    # continue onward into the CFormatStream. here, we will be fastidious and
-    # catch errors at every point.
+    # continue onward into the CFormatStream.
     cbns = new comppStreams.ConcatBackslashNewlinesStream
-    cbns.on 'error', (err) ->
-      console.error "concat stream:"
-      console.error err
-      process.exit -1
     pps = new comppStreams.PreprocessStream(
       opts.argv[0], opts.includes, defines)
-    pps.on 'error', (err) ->
-      console.error "preprocess stream:"
-      console.error err
-      process.exit -1
     cfs = new comppStreams.CFormatStream
       numNewlinesToPreserve: 0
       indentationString: "  "
     cfs.on 'error', (err) ->
-      console.error "format stream:"
-      console.error err
+      if err.code is 'ENOENT'   # probably isn't stdin
+        console.error "Input file #{err.path} not found."
+      else if err.code is 'EISDIR'
+        console.error "Input file #{err.path} is a directory."
+      else
+        console.error err
       process.exit -1
 
     inStream
       .pipe(cbns)
       .pipe(pps)
       .pipe(cfs)
-      .pipe(outStream)
+      .pipe(outStream).on 'error', (err) ->
+        if err.code is 'EISDIR'
+          console.error "Output file #{err.path} is a directory."
+        else
+          console.error err
+        process.exit -1
