@@ -24,16 +24,19 @@ int F = 3;
 // function-like; however, if the token is called as a function when it is an
 // object, or an object when it is a function, the macro goes unexpanded
 #define CA(x) #x
+
+#define AC(x, y) x ## y
 //#define CA "asdf"
 
-char * a = CA;
+char * a = AC(b, c);
 
 #ifdef CA
 int main() {
   int a = x + y + E + A;
   int b = y + x + F;
   printf("a: %d\n", a);
-  printf(CA(a) "\n");
+  printf(ASDF CA(a) CA(a) "\n");
+  // printf(ASDF CA(AC(b, c)) CA(a) CA(a) "\n");
 }
 #else
 int main() {

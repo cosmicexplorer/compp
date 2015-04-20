@@ -66,7 +66,7 @@ class PreprocessStream extends Transform
   ###
   example inputs:
 
-  ps = new PreprocessStream "hello.c", ['/mnt/usr/include'],
+  ps = new PreprocessStream "hello.c", ['/mnt/usr/include', "."],
     objLikeDefine:
       text: '(2 + 3)'
       type: 'object'
@@ -140,35 +140,78 @@ class PreprocessStream extends Transform
     else
       return str
 
+  escapeRegex: (str) ->
+    str = str
+      # backslash (must be first)
+      .replace(/\\/g, "\\\\")
+      # ()
+      .replace(/\(/g, "\\(").replace(/\)/g, "\\)")
+      # []
+      .replace(/\[/g, "\\[").replace(/\]/g, "\\]")
+      # {}
+      .replace(/\{/g, "\\{").replace(/\}/g, "\\}")
+      # *-+
+      .replace(/\*/g, "\\*").replace(/\-/g, "\\-").replace(/\+/g, "\\+")
+      # |?
+      .replace(/\|/g, "\\|").replace(/\?/g, "\\?")
+      # ^$
+      .replace(/\^/g, "\\^").replace(/\$/g, "\\$")
+      # .
+      .replace(/\./g, "\\.")
+    # adding \\b in front and back isn't working for some reason; no clue why
+
+  getCurFuncDefineText: (curArgsArr, defineVal, definesToSend) ->
+    if curArgsArr.length isnt defineVal.args.length
+      @throwError @constructor.defineErrorCol,
+      "Invalid number of arguments for function-like macro #{defineStr}; " +
+      "should be #{defineVal.args.length}, is #{curArgsArr.length}."
+    curDefineText = defineVal.text
+    for j in [0..(curArgsArr.length - 1)] by 1
+      searchStr = @escapeRegex(defineVal.args[j])
+      replaceStr = @applyDefines(curArgsArr[j], definesToSend)
+      tokenRegStr = "([a-zA-Z_][a-zA-Z0-9_]*)"
+      curDefineText = curDefineText.replace(
+        # use # to stringify
+        new RegExp("##{searchStr}"), "\"#{replaceStr}\"")
+        # normal replacement
+        .replace(new RegExp(searchStr), replaceStr)
+        # use ## to concatenate
+        .replace(new RegExp("\\b" + tokenRegStr + "\\s+##\\s+" +
+            tokenRegStr + "\\b"), (str, g1, g2) ->
+              g1 + g2)
+    return curDefineText
+
   applyFunctionDefine: (str, definesToSend, defineStr, defineVal) ->
     defineFunctionRegexStr = "\\b#{defineStr}\\([^\\)]*\\)"
     if defineVal.type is "function" and
        str.match(new RegExp(defineFunctionRegexStr, "g"))
       definesToSend.push defineStr
-      # the bottom two strings are guaranteed to exist by the regex above,
-      # so we don't check if they're null or whatever
       # array of tokens with parens attached
       tokensWithArgs = str.match(new RegExp(defineFunctionRegexStr, "g"))
       # array of just the parens portion of each token instance
-      argsInParens = tkArgs
-          .match(
-            @constructor.parentheticalExprRegex)[0] for tkArgs in tokensWithArgs
-      # array of arrays of args for each function call; because of this
-      # structure's complexity, we cannot use a comprehension as easily
+      argsInParens = []
+      for tkwArgs in tokensWithArgs
+        argsInParens.push tkwArgs.match(@constructor.parentheticalExprRegex)[0]
+      # FIXME: this doesn't allow for calling macros or functions within
+      # function-like macro invocations because of stupid parenthesis rules!
+      # array of arrays of args for each function call
       argsArr = []
       for argInP in argsInParens
-        res = (argInP.match(@constructor.argumentRegex)?.map (s) ->
-          s.replace parenCommaWhitespaceRegex, "")
-        if not res or
-           (res.length is 1 and res[0] is "")
-          res = []
-        argsArr.push res
+        tmpArgArr = argInP.match(@constructor.argumentRegex)
+        finalArgArr = []
+        for r in tmpArgArr
+          finalArgArr.push r.replace(@constructor.parenCommaWhitespaceRegex, "")
+        if finalArgArr.length is 1 and finalArgArr[0] is ""
+          finalArgArr = []
+        argsArr.push finalArgArr
       if tokensWithArgs.length isnt argsArr.length
         throw new Error "lengths should be the same here!\n" +
         "(this is a bug; #{tokensWithArgs.length} and #{argsArr.length})"
       for i in [0..(tokensWithArgs.length - 1)] by 1
-        return applyFunctionDefine defineVal, argsArr[i], tokensWithArgs[i],
-          str, defines, definesToSend, opts, line
+        curDefText = @getCurFuncDefineText argsArr[i], defineVal, definesToSend
+        str = str
+          .replace(new RegExp(@escapeRegex(tokensWithArgs[i])), curDefText)
+      return str
     else
       return str
 
@@ -199,24 +242,21 @@ class PreprocessStream extends Transform
     headerStream.on 'remove-define', (undefStr) =>
       @emit 'remove-define', undefStr
       delete @defines[undefStr] # die
-    outStream = (new ConcatBackslashNewlinesStream)
-      .pipe(headerStream)
-      .pipe(new CFormatStream
-        numNewlinesToPreserve: 0
-        indentationString: "  ")
     # errors and data propagate, which is why this works
-    outStream.on 'error', (err) =>
+    headerStream.on 'error', (err) =>
       @emit 'error', err
-    outStream.on 'data', (chunk) =>
+    headerStream.on 'data', (chunk) =>
       @push chunk
-    outStream.on 'end', =>
+    headerStream.on 'end', =>
       # restart chunks from this stream's input stream
       @src?.resume()
       @emit 'resume-input-stream'
     # stop chunks from this stream's input stream
     @emit 'pause-input-stream'
     @src?.pause()
-    fs.createReadStream(filePath).pipe(outStream)
+    fs.createReadStream(filePath)
+      .pipe(new ConcatBackslashNewlinesStream)
+      .pipe(headerStream)
 
   insertInclude: (directive, restOfLine) ->
     sysHeader = restOfLine.match(@constructor.systemHeaderRegex)?[0]
@@ -253,8 +293,10 @@ class PreprocessStream extends Transform
     if not args
       @throwError @constructor.defineErrorCol,
       "Function-like macro construction has no closing paren."
-    argsArr = (args.match @constructor.argumentRegex or []).map (s) ->
-      s.replace @constructor.parenCommaWhitespaceRegex, ""
+    unformattedArgsArr = args.match @constructor.argumentRegex or []
+    argsArr = []
+    for arg in unformattedArgsArr
+      argsArr.push arg.replace(@constructor.parenCommaWhitespaceRegex, "")
     argsArr = [] if argsArr.length is 1 and argsArr[0] is ""
     replaceText = lineAfterToken
       .substr(lineAfterToken.indexOf(args) + args.length)
@@ -551,7 +593,7 @@ class PreprocessStream extends Transform
       if directive and directive.match @constructor.condRegex
         @processIf directive, restOfLine
       else
-        matches = @curline.match @constructor.backslashNewlineRegex
+        matches = @curLine.match @constructor.backslashNewlineRegex
         @line += matches.length if matches
         ++@line
 
@@ -570,7 +612,7 @@ class PreprocessStream extends Transform
 
   # regexes
   @directiveRegex : /^\s*#\s*[a-z_]+/g
-  @tokenRegex : /\b[a-zA-Z_][a-zA-Z0-9_]{0,31}\b/g
+  @tokenRegex : /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g
   @numberTokenRegex : /\b[0-9]+\b/g
   @numberRegex : /[0-9]+/g
   @backslashNewlineRegex : /\\\n/g
