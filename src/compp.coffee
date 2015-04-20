@@ -106,8 +106,12 @@ module.exports =
         console.error "Input file #{err.path} not found."
       else if err.code is 'EISDIR'
         console.error "Input file #{err.path} is a directory."
-      else
-        console.error err
+      else                      # for errors from our transform streams
+        if err.sourceStream
+          console.error "From #{err.sourceStream}:"
+          console.error err.message
+        else
+          console.error err.stack
       process.exit -1
 
     inStream

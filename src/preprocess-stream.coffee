@@ -119,7 +119,9 @@ class PreprocessStream extends Transform
     for i in [1..(colNum - 1)] by 1
       errStr += " "
     errStr += "^~~\n"
-    @emit 'error', new Error(errStr)
+    errObj = new Error(errStr)
+    errObj.sourceStream = @constructor.name
+    @emit 'error', errObj
 
   applyObjectDefine: (str, definesToSend, defineStr, defineVal) ->
     ###
