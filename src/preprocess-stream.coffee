@@ -141,6 +141,7 @@ class PreprocessStream extends Transform
       return str
 
   escapeRegex: (str) ->
+    # adding \\b in front and back isn't working for some reason; no clue why
     str = str
       # backslash (must be first)
       .replace(/\\/g, "\\\\")
@@ -158,7 +159,6 @@ class PreprocessStream extends Transform
       .replace(/\^/g, "\\^").replace(/\$/g, "\\$")
       # .
       .replace(/\./g, "\\.")
-    # adding \\b in front and back isn't working for some reason; no clue why
 
   getCurFuncDefineText: (curArgsArr, defineVal, definesToSend) ->
     if curArgsArr.length isnt defineVal.args.length
