@@ -102,17 +102,20 @@ module.exports =
     # TODO: add better error management, taking care of all the errors that each
     # transform stream throws
     cfs.on 'error', (err) ->
-      if err.code is 'ENOENT'   # probably isn't stdin
-        console.error "Input file #{err.path} not found."
-      else if err.code is 'EISDIR'
-        console.error "Input file #{err.path} is a directory."
-      else                      # for errors from our transform streams
-        if err.sourceStream
-          console.error "From #{err.sourceStream}:"
-          console.error err.message
-        else
-          console.error err.stack
-      process.exit -1
+      if err.isWarning
+        console.error err.message
+      else
+        if err.code is 'ENOENT'   # probably isn't stdin, so assume path works
+          console.error "Input file #{err.path} not found."
+        else if err.code is 'EISDIR'
+          console.error "Input file #{err.path} is a directory."
+        else                      # for errors from our transform streams
+          if err.sourceStream
+            console.error "From #{err.sourceStream}:"
+            console.error err.message
+          else                    # unrecognized error
+            console.error err.stack
+        process.exit -1
 
     inStream
       .pipe(cbns)
@@ -125,6 +128,6 @@ module.exports =
       .pipe(outStream).on 'error', (err) ->
         if err.code is 'EISDIR'
           console.error "Output file #{err.path} is a directory."
-        else
-          console.error err
+        else                    # unrecognized error
+          console.error err.stack
         process.exit -1

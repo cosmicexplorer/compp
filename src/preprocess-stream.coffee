@@ -32,7 +32,6 @@ Transform = require('stream').Transform
 
 # local/npm modules
 ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
-CFormatStream = require 'c-format-stream'
 
 ###
 This sets up the include directories available on the system. It's run once per
@@ -116,11 +115,27 @@ class PreprocessStream extends Transform
   throwError: (colNum, errText) ->
     errStr = "#{@filename}:#{@line}:#{colNum}: error: #{errText}\n"
     errStr += @curLine
-    for i in [1..(colNum - 1)] by 1
-      errStr += " "
-    errStr += "^~~\n"
+    # get the cute little carat, but only if the input spans one line
+    if not @curLine.match @constructor.backslashNewlineRegex
+      for i in [1..(colNum - 1)] by 1
+        errStr += " "
+      errStr += "^~~\n"
     errObj = new Error(errStr)
     errObj.sourceStream = @constructor.name
+    errObj.isWarning = no
+    @emit 'error', errObj
+
+  throwWarning: (colNum, errText) ->
+    errStr = "#{@filename}:#{@line}:#{colNum}: warning: #{errText}\n"
+    errStr += @curLine
+    # get the cute little carat, but only if the input spans one line
+    if not @curLine.match @constructor.backslashNewlineRegex
+      for i in [1..(colNum - 1)] by 1
+        errStr += " "
+      errStr += "^~~\n"
+    errObj = new Error(errStr)
+    errObj.sourceStream = @constructor.name
+    errObj.isWarning = yes
     @emit 'error', errObj
 
   applyObjectDefine: (str, definesToSend, defineStr, defineVal) ->
@@ -255,8 +270,11 @@ class PreprocessStream extends Transform
     @emit 'pause-input-stream'
     @src?.pause()
     fs.createReadStream(filePath)
+      # this is required
       .pipe(new ConcatBackslashNewlinesStream)
       .pipe(headerStream)
+      # but don't pipe into CFormatStream; the output of this stream (from @push
+      # chunk) should already be going into such a stream
 
   insertInclude: (directive, restOfLine) ->
     sysHeader = restOfLine.match(@constructor.systemHeaderRegex)?[0]
@@ -351,6 +369,12 @@ class PreprocessStream extends Transform
 
   processError: (directive, restOfLine) ->
     @throwError @constructor.defineErrorCol,
+      restOfLine
+      .replace(@constructor.leadingWhitespaceRegex, "")
+      .replace(@constructor.trailingWhitespaceRegex, "")
+
+  processWarning: (directive, restOfLine) ->
+    @throwWarning @constructor.defineErrorCol,
       restOfLine
       .replace(@constructor.leadingWhitespaceRegex, "")
       .replace(@constructor.trailingWhitespaceRegex, "")
@@ -563,6 +587,8 @@ class PreprocessStream extends Transform
       then @removeDefine directive, restOfLine
       when "error"
       then @processError directive, restOfLine
+      when "warning"
+      then @processWarning directive, restOfLine
       when "pragma"
       then @processPragma()
       when "line"
