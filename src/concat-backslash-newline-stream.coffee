@@ -97,6 +97,7 @@ class ConcatBackslashNewlinesStream extends Transform
     cb?()
 
   _flush: (cb) ->
+    # ensure final newline just cause
     if @heldLines.charAt(@heldLines.length - 1) isnt "\n"
       @heldLines += "\n"
     @emit 'line', @heldLines

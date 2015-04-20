@@ -8,29 +8,34 @@ comppStreams = require "#{__dirname}/compp-streams"
 # frontend and argument processor for compp
 # calls to analyzeLines to do all the heavy lifting
 module.exports =
-  run : ->
+  # all the streams used for compp; use this to access
+  # concat-backslash-newline-stream and preprocess-stream (and c-format-stream
+  # if you want it all in one package)
+  comppStreams: comppStreams
+  # inStream and outStream are optional arguments, made so that compp could be
+  # more easily used by other javascript processes
+  run : (argv, inStreamArg, outStreamArg) ->
     ###
-    accepts -D, -U, -I, -h, -v, and -o arguments
-    note: undefs take precedence over defines, and later defines take precedence
-    over earlier defines ("earlier" -> earlier in argument list (closer to
-    left))
+    accepts -D, -U, -I, -h, -v, -t, and -o arguments
+    note: later defines take precedence over earlier defines ("earlier" =>
+    earlier in argument list (closer to left))
 
-    process.argv[0] will be "node", and process.argv[1] will be the compiled
+    argv[0] will be "node", and argv[1] will be the compiled
     version of this script, due to the way these are compiled to js before
     execution, and the way this is called from "compp" (an auxiliary script in
     the repo's base directory). this is done because invoking the script through
     the coffeescript interpreter "coffee compp.coffee ..." automatically splits
-    process.argv according to the argument parsing done in the coffeescript
+    argv according to the argument parsing done in the coffeescript
     frontend, making the traditional "-DDEFINE" cpp syntax fail. the only
     resolution to this issue (calling this with "/usr/bin/env coffee --")
     doesn't actually work. we will explicitly shift it and change to "coffee"
     here to avoid confusion.
     ###
-    process.argv.shift()
-    process.argv[0] = "coffee"
+    argv.shift()
+    argv[0] = "coffee"
 
     # parse and sanitize inputs
-    opts = comppGetOpt.parseArgsFromArr process.argv
+    opts = comppGetOpt.parseArgsFromArr argv
 
     if opts.help
       comppGetOpt.displayHelp()
@@ -81,12 +86,16 @@ module.exports =
     else
       opts.includes.push path.resolve(path.dirname(opts.argv[0]))
 
-    if opts.argv[0] is "-"
+    if inStreamArg
+      inStream = inStreamArg
+    else if opts.argv[0] is "-"
       inStream = process.stdin
     else
       inStream = fs.createReadStream(opts.argv[0])
 
-    if opts.output[0]
+    if outStreamArg
+      outStream = outStreamArg
+    else if opts.output[0]
       outStream = fs.createWriteStream(opts.output[0])
     else
       outStream = process.stdout
@@ -95,6 +104,7 @@ module.exports =
     # continue onward into the CFormatStream.
     cbns = new comppStreams.ConcatBackslashNewlinesStream
        filename: opts.argv[0]
+       allowTrigraphs: opts.trigraphs
     pps = new comppStreams.PreprocessStream(
       opts.argv[0], opts.includes, defines)
     cfs = new comppStreams.CFormatStream

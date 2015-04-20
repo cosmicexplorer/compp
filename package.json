@@ -11,7 +11,7 @@
   "bin": {
     "compp": "bin/compp"
   },
-  "main": "lib/compp/analyzeLines.js",
+  "main": "lib/compp/compp.js",
   "repository": {
     "type": "git",
     "url": "git://github.com/cosmicexplorer/compp.git"
@@ -20,7 +20,8 @@
     "compile",
     "preprocess",
     "parse",
-    "compost"
+    "transform",
+    "stream"
   ],
   "devDependencies": {
     "coffee-script": "1.9.x"

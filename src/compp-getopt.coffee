@@ -6,12 +6,13 @@ undefArgRegex = /^\-U/g
 includeArgRegex = /^\-I/g
 outputArgRegex = /^\-o/g
 helpArgRegex = /^\-h/g
+trigraphArgRegex = /^-t/g
 versionArgRegex = /^\-v/g
 
 displayHelp = ->
   console.log '''
     Usage: compp [-Dmacro[=defn]...] [-Umacro]
-                 [-Idir] [-o outfile]
+                 [-Idir] [-o outfile] [-t]
                  infile [outfile]
   '''
 
@@ -28,6 +29,7 @@ parseArgsFromArr = (argArr) ->
   undefs = []
   includes = []
   output = []
+  trigraphs = no
   # list of arguments without minuses
   argv = []
   prevWasOutputFlag = no
@@ -50,17 +52,20 @@ parseArgsFromArr = (argArr) ->
       help = yes
     else if arg.match versionArgRegex
       version = yes
+    else if arg.match trigraphArgRegex
+      trigraphs = yes
     else
       argv.push arg
   return {
-    exec: exec,
-    argv: argv,
-    help: help,
+    exec: exec
+    argv: argv
+    help: help
     version: version
     defines: defines
     undefs: undefs
     includes: includes
     output: output
+    trigraphs: trigraphs
   }
 
 module.exports =
