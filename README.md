@@ -15,10 +15,9 @@ A preprocessor for [composter](https://github.com/cosmicexplorer/composter), the
 ## Executable
 ```bash
 $ compp -h
-
-    Usage: compp [-Dmacro[=defn]...] [-Umacro]
-                 [-Idir] [-o outfile] [-t]
-                 infile [outfile]
+Usage: compp [-Dmacro[=defn]...] [-Umacro]
+             [-Idir] [-o outfile] [-t]
+             infile [outfile]
 ```
 Use `"-"` for stdin or stdout instead of naming a file. `outfile` defaults to stdout. Use the `-t` option to turn on trigraphs.
 
@@ -41,6 +40,7 @@ Compp.run(args, getReadableStreamSomehow(), getWriteableStreamSomehow(),
 
 All streams in the pipeline can be used separately; there are detailed instructions in the source on how to manually use each one. However, it is easiest to just use all three at once with the provided run function. All three streams in the pipeline will propagate any `'error'` events, so it is sufficient to simply watch error events that occur at the final stage of the pipeline. Note that [c-format-stream](https://github.com/cosmicexplorer/c-format-stream) has its own repository and associated documentation.
 
+# Explanation:
 ## How compliant is this preprocessor?
 
 I've been reading through the GNU cpp manual quite a bit recently, and I intend for compp to match its capabilities. I don't intend to pedantically follow ANSI C, and I'll resolve any errors in test inputs as they arise.
