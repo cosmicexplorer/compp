@@ -6,7 +6,8 @@ CFormatStream = require 'c-format-stream'
 example usage:
 
     inStream
-      .pipe(new comppStreams.ConcatBackslashNewlinesStream)
+      .pipe(new comppStreams.ConcatBackslashNewlinesStream
+        filename: filename)
       .pipe(new comppStreams.PreprocessStream(
         filename, opts.includes, defines))
       .pipe(new comppStreams.CFormatStream({

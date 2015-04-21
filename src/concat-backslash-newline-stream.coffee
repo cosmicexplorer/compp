@@ -13,7 +13,7 @@ class ConcatBackslashNewlinesStream extends Transform
       opts = {}
     opts.readableObjectMode = yes
     if not @ instanceof ConcatBackslashNewlinesStream
-      return new ConcatBackslashNewlinesStream
+      return new ConcatBackslashNewlinesStream opts
     else
       Transform.call @, opts
 

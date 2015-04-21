@@ -116,6 +116,8 @@ module.exports =
       if err.isWarning
         if err.sourceStream
           console.error "From #{err.sourceStream}:"
+        else
+          console.error "No source stream specified:"
         console.error err.message
         if err.isTrigraph
           console.error "Use -t to enable."

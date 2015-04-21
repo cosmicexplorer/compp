@@ -86,6 +86,11 @@ class PreprocessStream extends Transform
     # text of the line currently being processed; set in _transform
     @curLine = ""
 
+    # when a file is included, we stick the number of times it is included in
+    # here. if any of those reach above a certain point, we stop it and throw an
+    # error.
+    @includeDict = {}
+
     # emit 'error' and track input stream
     @src = null
     cbError = (err) =>
@@ -244,8 +249,7 @@ class PreprocessStream extends Transform
       .replace(@constructor.fileTokenRegex, @filename)
       .replace(@constructor.lineTokenRegex, @line)
 
-  pipeIncludeHeader: (filePath) ->
-    headerStream = new PreprocessStream(filePath, @includeDirs, @defines)
+  prepareHeaderStream: (headerStream, filePath) ->
     # propagate these all the way down
     headerStream.on 'add-define', (defineObj) =>
       @emit 'add-define', defineObj
@@ -254,6 +258,20 @@ class PreprocessStream extends Transform
     headerStream.on 'remove-define', (undefStr) =>
       @emit 'remove-define', undefStr
       delete @defines[undefStr] # die
+    @emit 'add-include', filePath
+    # TODO: if i uncomment the following line, adding headers will not crash,
+    # but instead silently fail. why?
+    # throw -1
+    headerStream.on 'add-include', (includeStr) =>
+      @emit 'add-include', includeStr
+      if not @includeDict[includeStr]
+        @includeDict[includeStr] = 1
+      else
+        ++@includeDict[includeStr]
+      if @includeDict[includeStr] > @constructor.numIncludesBeforeDeath
+        @throwError @constructor.defineErrorCol,
+        "file #{filePath} included too many (> " +
+        "#{@constructor.numIncludesBeforeDeath}) times."
     # errors and data propagate, which is why this works
     headerStream.on 'error', (err) =>
       @emit 'error', err
@@ -263,6 +281,10 @@ class PreprocessStream extends Transform
       # restart chunks from this stream's input stream
       @src?.resume()
       @emit 'resume-input-stream'
+
+  pipeIncludeHeader: (filePath) ->
+    headerStream = new PreprocessStream(filePath, @includeDirs, @defines)
+    @prepareHeaderStream(headerStream, filePath)
     # stop chunks from this stream's input stream
     @emit 'pause-input-stream'
     @src?.pause()
@@ -632,6 +654,7 @@ class PreprocessStream extends Transform
   ###
   # constants
   @defineErrorCol: 2
+  @numIncludesBeforeDeath: 50
 
   # regexes
   @directiveRegex: /^\s*#\s*[a-z_]+/g
@@ -666,11 +689,7 @@ class PreprocessStream extends Transform
   @localHeaderRegex: /^\s*".+"/g
   @stripSideCaratsRegex: /[<>]/g
   @stripQuotesRegex: /"/g
+  # regexes used in #if/#elif conditionals
   @disallowedConditionalChars: /[^0-9\(\)!%\^&\*\-\+\|\/=~<>\\\s]/g
   @definedParensRegex: /\bdefined\s*\(([^\)]*)\)/g
   @definedSpaceRegex: /\bdefined\s*(\w+)/g
-  # digraph regexes
-  # note that due to the required implementation of digraphs, they must be
-  # separate tokens (hence the \b boundaries); trigraphs do not require this.
-  # this is why trigraph processing is split into
-  # concat-backslash-newline-stream
