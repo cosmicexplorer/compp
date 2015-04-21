@@ -7,6 +7,7 @@ A preprocessor for [composter](https://github.com/cosmicexplorer/composter), the
 
 ## TODO:
 - better column markings
+- function-like macros on the command line
 - get system and compiler-independent include directories
 - actually evaluate conditional ifs
 
@@ -23,30 +24,22 @@ Use `"-"` for stdin or stdout instead of naming a file. `outfile` defaults to st
 
 ## Node Module
 ```javascript
-ComppStreams = require('compp');
+Compp = require('compp');
 
-// this pipeline will preprocess your input stream
-preprocessPipeline = getReadableStreamSomehow()
-  .pipe(new ComppStreams.ConcatBackslashNewlinesStream({
-    filename: filename
-  }))
-  .pipe(new ComppStreams.PreprocessStream(filename, opts.includes, defines))
-  .pipe(new ComppStreams.CFormatStream({ // these parameters can be modified
-    numNewlinesToPreserve: 0,            // as described in c-format-stream
-    indentationString: "  "
-  }));
+args = {
+  defines: ['__cplusplus', 'ASDF=3'],
+  includes: ['/usr/include']
+};
 
-// fires if there are any errors in the readable stream, or in between.
-// example code for how to use errors arising from invalid preprocessor input
-// (essentially, compiler errors) can be found in the source
-preprocessPipeline.on('error', function(err){
-  handleErr(err); // do whatever, man
-});
+Compp.run(args, getReadableStreamSomehow(), getWriteableStreamSomehow(),
+  function(err){
+    handleError(err); // do whatever you want, man
+  }
+);
 
-preprocessPipeline.pipe(getWriteableStreamSomehow());
 ```
 
-All streams in the pipeline can be used separately; there are detailed instructions in the source on how to manually write to the preprocessing stream, for example. However, it is easiest to just use all three at once. All three streams in the pipeline will propagate any `'error'` events, so it is sufficient to simply watch error events that occur at the final stage of the pipeline. Note that [c-format-stream](https://github.com/cosmicexplorer/c-format-stream) has its own repository and associated documentation.
+All streams in the pipeline can be used separately; there are detailed instructions in the source on how to manually use each one. However, it is easiest to just use all three at once with the provided run function. All three streams in the pipeline will propagate any `'error'` events, so it is sufficient to simply watch error events that occur at the final stage of the pipeline. Note that [c-format-stream](https://github.com/cosmicexplorer/c-format-stream) has its own repository and associated documentation.
 
 ## How compliant is this preprocessor?
 

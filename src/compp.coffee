@@ -11,10 +11,10 @@ module.exports =
   # all the streams used for compp; use this to access
   # concat-backslash-newline-stream and preprocess-stream (and c-format-stream
   # if you want it all in one package)
-  comppStreams: comppStreams
+  streams: comppStreams
   # inStream and outStream are optional arguments, made so that compp could be
   # more easily used by other javascript processes
-  run : (argv, inStreamArg, outStreamArg) ->
+  run : (argv, inStreamArg, outStreamArg, errorCallback) ->
     ###
     accepts -D, -U, -I, -h, -v, -t, and -o arguments
     note: later defines take precedence over earlier defines ("earlier" =>
@@ -31,11 +31,14 @@ module.exports =
     doesn't actually work. we will explicitly shift it and change to "coffee"
     here to avoid confusion.
     ###
-    argv.shift()
-    argv[0] = "coffee"
-
-    # parse and sanitize inputs
-    opts = comppGetOpt.parseArgsFromArr argv
+    if argv instanceof Array
+      argv.shift()
+      argv[0] = "coffee"
+      # parse and sanitize inputs
+      opts = comppGetOpt.parseArgsFromArr argv
+    else
+      # in case we just wanna pass the arguments directly
+      opts = argv
 
     if opts.help
       comppGetOpt.displayHelp()
@@ -88,6 +91,7 @@ module.exports =
 
     if inStreamArg
       inStream = inStreamArg
+      opts.argv[0] = "-"
     else if opts.argv[0] is "-"
       inStream = process.stdin
     else
@@ -95,6 +99,7 @@ module.exports =
 
     if outStreamArg
       outStream = outStreamArg
+      opts.output[0] = "-"
     else if opts.output[0]
       outStream = fs.createWriteStream(opts.output[0])
     else
@@ -112,25 +117,28 @@ module.exports =
       indentationString: "  "
     # TODO: add better error management, taking care of all the errors that each
     # transform stream throws
-    cfs.on 'error', (err) ->
-      if err.isWarning
-        if err.sourceStream
-          console.error "From #{err.sourceStream}:"
-        else
-          console.error "No source stream specified:"
-        console.error err.message
-        if err.isTrigraph
-          console.error "Use -t to enable."
-      else
-        if err.sourceStream
+    if errorCallback
+      cfs.on 'error', errorCallback
+    else
+      cfs.on 'error', (err) ->
+        if err.isWarning
+          if err.sourceStream
+            console.error "From #{err.sourceStream}:"
+          else
+            console.error "No source stream specified:"
           console.error err.message
-        else if err.code is 'ENOENT' # probably isn't stdin; assume path works
-          console.error "Input file #{err.path} not found."
-        else if err.code is 'EISDIR'
-          console.error "Input file #{err.path} is a directory."
-        else                    # unrecognized error
-            console.error err.stack
-        process.exit -1
+          if err.isTrigraph
+            console.error "Use -t to enable."
+        else
+          if err.sourceStream
+            console.error err.message
+          else if err.code is 'ENOENT' # probably isn't stdin; assume path works
+            console.error "Input file #{err.path} not found."
+          else if err.code is 'EISDIR'
+            console.error "Input file #{err.path} is a directory."
+          else                    # unrecognized error
+              console.error err.stack
+          process.exit -1
 
     inStream
       .pipe(cbns)
