@@ -9,9 +9,8 @@ newline, except when backslash-newlines are used. e.g.:
 would be an appropriate 'line' input into this stream. Unless you are trying
 some strange experiment, you will want to write not into this stream directly,
 but into an instance of ConcatBackslashNewlinesStream, in this same
-directory. The file 'compp-streams' provides the helper method
-PreprocessorPipelineFactory to make everything simple and fun (although if you
-don't want to format the output then you can just manually pipe the input only).
+directory. The file 'compp-streams' provides access to all required streams to
+make everything simple and fun.
 
 Also, this is meant to be piped into. There are two ways to approach this; if
 you must manually write into this instead of piping another stream, you can use
