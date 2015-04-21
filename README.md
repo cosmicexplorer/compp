@@ -15,7 +15,7 @@ A preprocessor for [composter](https://github.com/cosmicexplorer/composter), the
 ## Executable
 ```bash
 $ compp -h
-Usage: compp [-Dmacro[=defn]...] [-Umacro]
+Usage: compp [-Dmacro[=defn]...] [-Umacro...]
              [-Idir] [-o outfile] [-t]
              infile [outfile]
 ```

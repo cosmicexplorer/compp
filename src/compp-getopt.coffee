@@ -11,7 +11,7 @@ versionArgRegex = /^\-v/g
 
 displayHelp = ->
   console.log '''
-    Usage: compp [-Dmacro[=defn]...] [-Umacro]
+    Usage: compp [-Dmacro[=defn]...] [-Umacro...]
                  [-Idir] [-o outfile] [-t]
                  infile [outfile]
   '''
