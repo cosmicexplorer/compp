@@ -193,10 +193,6 @@ class PreprocessStream extends Transform
         new RegExp("##{searchStr}"), "\"#{replaceStr}\"", "g")
         # normal replacement
         .replace(new RegExp("\\b" + searchStr + "\\b", "g"), replaceStr)
-        # # use ## to concatenate tokens
-        # .replace(new RegExp("\\b" + @constructor.tokenRegexStr + "\\s+##\\s+" +
-        #     @constructor.tokenRegexStr + "\\b", "g"), (str, g1, g2) ->
-        #       g1 + g2)
     return curDefineText
 
   # call @applyDefines, ensure # is only before a macro parameter, and add in ##
