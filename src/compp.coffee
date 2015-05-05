@@ -42,7 +42,7 @@ module.exports =
 
     if opts.help
       comppGetOpt.displayHelp()
-      process.exit -1
+      process.exit 1
     if opts.version
       comppGetOpt.displayVersion()
       process.exit 0
@@ -50,12 +50,12 @@ module.exports =
     if not (0 < opts.argv.length <= 2)
       console.error "Please input at least one and at most two file(s) " +
       "for preprocessing."
-      process.exit -1
+      process.exit 1
 
     if opts.output.length > 1 or
        (opts.output.length is 1 and opts.argv.length is 2)
       console.error "Please input at most one file for output."
-      process.exit -1
+      process.exit 1
 
     if opts.output.length is 0 and opts.argv.length is 2
       opts.output = [opts.argv[1]]
@@ -138,7 +138,7 @@ module.exports =
             console.error "Input file #{err.path} is a directory."
           else                    # unrecognized error
               console.error err.stack
-          process.exit -1
+          process.exit 1
 
     inStream
       .pipe(cbns)
@@ -153,4 +153,4 @@ module.exports =
           console.error "Output file #{err.path} is a directory."
         else                    # unrecognized error
           console.error err.stack
-        process.exit -1
+        process.exit 1

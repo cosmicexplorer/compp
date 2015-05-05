@@ -1,37 +1,37 @@
 .PHONY: all clean distclean check install
 
 # required to build
-NPM_BIN = $(shell npm bin)
-FORMAT_OUT = $(NPM_BIN)/c-format
-COFFEE_CC = $(NPM_BIN)/coffee
+NPM_BIN := $(shell npm bin)
+FORMAT_OUT := $(NPM_BIN)/c-format
+COFFEE_CC := $(NPM_BIN)/coffee
 
 # put source inputs in src/ and make them coffee files
-SRC_DIR = src
-SRC = $(wildcard $(SRC_DIR)/*.coffee)
-OBJ_DIR = lib/compp
-OBJ = $(patsubst $(SRC_DIR)/%.coffee, $(OBJ_DIR)/%.js, $(SRC))
+SRC_DIR := src
+SRC := $(wildcard $(SRC_DIR)/*.coffee)
+OBJ_DIR := lib/compp
+OBJ := $(patsubst $(SRC_DIR)/%.coffee, $(OBJ_DIR)/%.js, $(SRC))
 
 # "binary"
-DRIVER = compp
-BIN_DIR = bin
-BIN_DRIVER = $(BIN_DIR)/$(DRIVER)
+DRIVER := compp
+BIN_DIR := bin
+BIN_DRIVER := $(BIN_DIR)/$(DRIVER)
 
 # setup test directories
-TEST_DIR = test
-TEST_IN_DIR = $(TEST_DIR)/in
-TEST_OUT_DIR = $(TEST_DIR)/out
-TEST_OUT_CPP_DIR = $(TEST_OUT_DIR)/cpp
-TEST_OUT_COMPP_DIR = $(TEST_OUT_DIR)/compp
-TEST_IN = $(wildcard $(TEST_IN_DIR)/*.c)
+TEST_DIR := test
+TEST_IN_DIR := $(TEST_DIR)/in
+TEST_OUT_DIR := $(TEST_DIR)/out
+TEST_OUT_CPP_DIR := $(TEST_OUT_DIR)/cpp
+TEST_OUT_COMPP_DIR := $(TEST_OUT_DIR)/compp
+TEST_IN := $(wildcard $(TEST_IN_DIR)/*.c)
 # these are the output of cpp
-TEST_CPP_OBJ = $(patsubst $(TEST_IN_DIR)/%.c, \
+TEST_CPP_OBJ := $(patsubst $(TEST_IN_DIR)/%.c, \
 	$(TEST_OUT_CPP_DIR)/%.c, $(TEST_IN))
 # these are the output of compp!
-TEST_COMPP_OBJ = $(patsubst $(TEST_IN_DIR)/%.c, \
+TEST_COMPP_OBJ := $(patsubst $(TEST_IN_DIR)/%.c, \
 	$(TEST_OUT_COMPP_DIR)/%.c, $(TEST_IN))
 
 # lol should probs have these
-DEPS = node_modules
+DEPS := node_modules
 
 all: $(BIN_DRIVER)
 

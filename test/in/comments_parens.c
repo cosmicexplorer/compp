@@ -25,6 +25,10 @@ int F = 3;
 // object, or an object when it is a function, the macro goes unexpanded
 #define CA(x) #x
 
+/* the below will error out */
+/* #define STRINGIFY(x) #c */
+/* char * aa = STRINGIFY(a); */
+
 #define AC(x, y) x ## y
 //#define CA "asdf"
 

@@ -116,6 +116,9 @@ class PreprocessStream extends Transform
     ###
     @ifStack = []
 
+  updateLineCount: () ->
+    @line += @curLine.match(@constructor.newlineRegex).length
+
   getErrObj: (colNum, errText, isWarningOpts) ->
     if isWarningOpts?.isWarning
       warnErrStr = "warning"
@@ -144,9 +147,8 @@ class PreprocessStream extends Transform
     this regex construction is safe because valid tokens for #defines
     will only contain [a-zA-z0-9_], as shown above in tokenRegex.
     if there were hyphens, backslashes, or other such weird things, we
-    would have to perform the appropriate escaping.
-
-    this applies to applyFunctionDefine too
+    would have to perform the appropriate escaping. this applies to
+    applyFunctionDefine too.
     ###
     defineObjectRegexStr = "\\b#{defineStr}\\b"
     if defineVal.type is "object" and
@@ -186,17 +188,30 @@ class PreprocessStream extends Transform
     for j in [0..(curArgsArr.length - 1)] by 1
       searchStr = @escapeRegex(defineVal.args[j])
       replaceStr = @applyDefines(curArgsArr[j], definesToSend)
-      tokenRegStr = "([a-zA-Z_][a-zA-Z0-9_]*)"
       curDefineText = curDefineText.replace(
         # use # to stringify
-        new RegExp("##{searchStr}"), "\"#{replaceStr}\"")
+        new RegExp("##{searchStr}"), "\"#{replaceStr}\"", "g")
         # normal replacement
-        .replace(new RegExp(searchStr), replaceStr)
-        # use ## to concatenate tokens
-        .replace(new RegExp("\\b" + tokenRegStr + "\\s+##\\s+" +
-            tokenRegStr + "\\b"), (str, g1, g2) ->
-              g1 + g2)
+        .replace(new RegExp("\\b" + searchStr + "\\b", "g"), replaceStr)
+        # # use ## to concatenate tokens
+        # .replace(new RegExp("\\b" + @constructor.tokenRegexStr + "\\s+##\\s+" +
+        #     @constructor.tokenRegexStr + "\\b", "g"), (str, g1, g2) ->
+        #       g1 + g2)
     return curDefineText
+
+  # call @applyDefines, ensure # is only before a macro parameter, and add in ##
+  # concatenation /after/ calling applyDefines
+  sanitizeCurFuncDefineText: (text, curArgsArr, defineVal, definesToSend) ->
+    str = @applyDefines(text, definesToSend)
+    # should have stringified them all by now
+    if str.match @constructor.hashTokenRegex
+      # TODO: fix the column number
+      @throwError @constructor.defineErrorCol,
+      "'#' is not followed by a macro parameter"
+    # use ## to concatenate tokens
+    str.replace(new RegExp("\\b" + @constructor.tokenRegexStr + "\\s+##\\s+" +
+      @constructor.tokenRegexStr + "\\b", "g"), (str, g1, g2) ->
+        g1 + g2)
 
   applyFunctionDefine: (str, definesToSend, defineStr, defineVal) ->
     defineFunctionRegexStr = "\\b#{defineStr}\\([^\\)]*\\)"
@@ -228,7 +243,9 @@ class PreprocessStream extends Transform
       for i in [0..(tokensWithArgs.length - 1)] by 1
         curDefText = @getCurFuncDefineText argsArr[i], defineVal, definesToSend
         str = str
-          .replace(new RegExp(@escapeRegex(tokensWithArgs[i])), curDefText)
+          .replace(new RegExp(@escapeRegex(tokensWithArgs[i]), "g"),
+            @sanitizeCurFuncDefineText(
+              curDefText, argsArr[i], defineVal, definesToSend))
     return str
 
   applyDefines: (str, macrosExpanded) ->
@@ -240,23 +257,21 @@ class PreprocessStream extends Transform
           definesToSend = macrosExpanded
         else
           definesToSend = []
-        str = @applyObjectDefine str, definesToSend, defineStr, defineVal
         str = @applyFunctionDefine str, definesToSend, defineStr, defineVal
-    # __FILE__ and __LINE__ are constantly changed by the preprocessor, so we
-    # will special-case them here instead of inserting them as normal macros
+        str = @applyObjectDefine str, definesToSend, defineStr, defineVal
     return str
-      .replace(@constructor.fileTokenRegex, @filename)
-      .replace(@constructor.lineTokenRegex, @line)
 
   prepareHeaderStream: (headerStream, filePath) ->
     # propagate these all the way down
     headerStream.on 'add-define', (defineObj) =>
       @emit 'add-define', defineObj
       for defineStr, defineVal of defineObj
-        @defines[defineStr] = defineVal # overwrite as required
-    headerStream.on 'remove-define', (undefStr) =>
-      @emit 'remove-define', undefStr
-      delete @defines[undefStr] # die
+        if (defineStr isnt "  file  ") and
+           (defineStr isnt "  line  ")
+          @defines[defineStr] = defineVal # overwrite as required
+    headerStream.on 'remove-define', (undefObj) =>
+      @emit 'remove-define', undefObj
+      delete @defines[undefObj.token] # die
     @emit 'add-include', filePath
     # TODO: if i uncomment the following line, adding headers will not crash,
     # but instead silently fail. why?
@@ -315,8 +330,6 @@ class PreprocessStream extends Transform
         filePath = path.join includeDir, headerFilename
         fs.statSync filePath    # throws if dne
         found = yes
-        # TODO: make sure a file can only be included x times, and if included
-        # more than x times, then error out with cyclical include error
         @pipeIncludeHeader filePath
       catch
       if found
@@ -347,6 +360,8 @@ class PreprocessStream extends Transform
     @defines[defineToken] = addDefineObj
     emitDefineObj = {}
     emitDefineObj[defineToken] = addDefineObj
+    emitDefineObj["  line  "] = @line
+    emitDefineObj["  file  "] = @filename
     @emit 'add-define', emitDefineObj
 
   addObjectMacro: (defineToken, lineAfterToken) ->
@@ -360,6 +375,8 @@ class PreprocessStream extends Transform
     @defines[defineToken] = addDefineObj
     emitDefineObj = {}
     emitDefineObj[defineToken] = addDefineObj
+    emitDefineObj["  line  "] = @line
+    emitDefineObj["  file  "] = @filename
     @emit 'add-define', emitDefineObj
 
   addDefine: (directive, restOfLine) ->
@@ -372,19 +389,19 @@ class PreprocessStream extends Transform
       @addFunctionMacro defineToken, lineAfterToken
     else
       @addObjectMacro defineToken, lineAfterToken
-    matches = @curLine.match @constructor.backslashNewlineRegex
-    @line += matches.length if matches
-    ++@line
+    @updateLineCount()
 
   removeDefine: (directive, restOfLine) ->
     undefToken = restOfLine.match(@constructor.tokenRegex)?[0]
     if not undefToken
       @throwError @constructor.defineErrorCol, "No token given to #undef."
     delete @defines[undefToken]
-    @emit 'remove-define', undefToken
-    matches = @curLine.match @constructor.backslashNewlineRegex
-    @line += matches.length if matches
-    ++@line
+    undefObj = {}
+    undefObj.token = undefToken
+    undefObj.line = @line
+    undefObj.file = @filename
+    @emit 'remove-define', undefObj
+    @updateLineCount()
 
   processError: (directive, restOfLine) ->
     @throwError @constructor.defineErrorCol,
@@ -401,9 +418,7 @@ class PreprocessStream extends Transform
   processPragma: ->
     # the compiler sees these, not us, so we just push it
     @push @curLine.replace(@constructor.backslashNewlineRegex, "")
-    matches = @curLine.match @constructor.backslashNewlineRegex, ""
-    @line += matches.length if matches
-    ++@line
+    @updateLineCount()
 
   processLineDirective: (directive, restOfLine) ->
     toLine = restOfLine.match(@constructor.numberTokenRegex)?[0]
@@ -560,16 +575,12 @@ class PreprocessStream extends Transform
         @ifStack.pop()
     else
       @processIfConstExpr directive, restOfLine
-    matches = @curLine.match @constructor.backslashNewlineRegex
-    @line += matches.length if matches
-    ++@line
+    @updateLineCount()
 
   processSourceLine: (line) ->
     outLine = @applyDefines line
     @push outLine
-    matches = @curLine.match @constructor.backslashNewlineRegex
-    @line += matches.length if matches
-    ++@line
+    @updateLineCount()
 
   processComments: (line) ->
     newLine = []
@@ -620,7 +631,6 @@ class PreprocessStream extends Transform
 
   processLine: (line) ->
     uncommentedLine = @processComments line
-    # TODO: add digraph/trigraph support
     directive = uncommentedLine.match(@constructor.directiveRegex)?[0]
     restOfLine = ""
     if not directive
@@ -638,9 +648,7 @@ class PreprocessStream extends Transform
       if directive and directive.match @constructor.condRegex
         @processIf directive, restOfLine
       else
-        matches = @curLine.match @constructor.backslashNewlineRegex
-        @line += matches.length if matches
-        ++@line
+        @updateLineCount()
 
   _transform: (chunk, enc, cb) ->
     str = chunk.toString()
@@ -655,11 +663,15 @@ class PreprocessStream extends Transform
   @defineErrorCol: 2
   @numIncludesBeforeDeath: 50
 
+  # regex strings
+  @tokenRegexStr: "([a-zA-Z_][a-zA-Z0-9_]*)"
+
   # regexes
   @directiveRegex: /^\s*#\s*[a-z_]+/g
   @tokenRegex: /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g
   @numberTokenRegex: /\b[0-9]+\b/g
   @numberRegex: /[0-9]+/g
+  @newlineRegex: /\n/g
   @backslashNewlineRegex: /\\\n/g
   @stringInQuotes: /".*"/g
   # matches all preprocessor conditionals
@@ -670,6 +682,7 @@ class PreprocessStream extends Transform
   @whitespaceRegex: /\s/g
   @multipleWhitespaceRegex: /\s+/g
   @hashRegex: /#/g
+  @hashTokenRegex: /#[a-zA-Z_][a-zA-Z0-9_]*\b/g
   # matches //-style comments until backslash-newline
   @C99CommentBackslashRegex: /\/\/.*\\\n/g
   # matches //-style comments until end of line

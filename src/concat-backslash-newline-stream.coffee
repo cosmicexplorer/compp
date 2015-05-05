@@ -19,6 +19,7 @@ class ConcatBackslashNewlinesStream extends Transform
 
     @heldLines = ""
     @prevChar = ""
+    @isInString = no
     if opts.filename
       @filename = opts.filename
     # else
@@ -77,7 +78,10 @@ class ConcatBackslashNewlinesStream extends Transform
     for c in @heldLines
       outStr += c
       ++@curCol
-      if c is "\n" and @prevChar isnt "\\"
+      if c is "'" or c is "\""
+        @isInString = not @isInString
+      if c is "\n" and @prevChar isnt "\\" and
+         not @isInString
         @emit 'line', outStr
         @push outStr
         outStr = ""
