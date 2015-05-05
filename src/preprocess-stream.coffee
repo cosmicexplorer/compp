@@ -153,6 +153,15 @@ class PreprocessStream extends Transform
     defineObjectRegexStr = "\\b#{defineStr}\\b"
     if defineVal.type is "object" and
        str.match(new RegExp(defineObjectRegexStr, "g"))
+      # emit object that represents use of define
+      defineRefObj = {}
+      defineRefObj.defineStr = defineStr
+      defineRefObj.defineVal = defineVal
+      defineRefObj.str = str
+      defineRefObj["  file  "] = @filename
+      defineRefObj["  line  "] = @line
+      @emit 'define-ref', defineRefObj
+      # don't use this define again (avoid recursion)
       definesToSend.push defineStr
       replaceString = @applyDefines defineVal.text, definesToSend
       str = str.replace(new RegExp(defineObjectRegexStr, "g"),
@@ -160,7 +169,6 @@ class PreprocessStream extends Transform
     return str
 
   escapeRegex: (str) ->
-    # adding \\b in front and back isn't working for some reason; no clue why
     str = str
       # backslash (must be first)
       .replace(/\\/g, "\\\\")
@@ -213,6 +221,15 @@ class PreprocessStream extends Transform
     defineFunctionRegexStr = "\\b#{defineStr}\\([^\\)]*\\)"
     if defineVal.type is "function" and
        str.match(new RegExp(defineFunctionRegexStr, "g"))
+      # emit object that represents use of define
+      defineRefObj = {}
+      defineRefObj.defineStr = defineStr
+      defineRefObj.defineVal = defineVal
+      defineRefObj.str = str
+      defineRefObj["  file  "] = @filename
+      defineRefObj["  line  "] = @line
+      @emit 'define-ref', defineRefObj
+      # don't use this define again (avoid recursion)
       definesToSend.push defineStr
       # array of tokens with parens attached
       tokensWithArgs = str.match(new RegExp(defineFunctionRegexStr, "g"))
@@ -282,6 +299,8 @@ class PreprocessStream extends Transform
         @throwError @constructor.defineErrorCol,
         "file #{filePath} included too many (> " +
         "#{@constructor.numIncludesBeforeDeath}) times."
+    headerStream.on 'define-ref', (defineRefObj) =>
+      @emit 'define-ref', defineRefObj
     # errors and data propagate, which is why this works
     headerStream.on 'error', (err) =>
       @emit 'error', err
