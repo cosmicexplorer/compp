@@ -1,3 +1,5 @@
+# BROKEN
+
 ###
 transform stream that performs a C preprocessing of the input
 
@@ -29,42 +31,15 @@ fs = require 'fs'
 path = require 'path'
 Transform = require('stream').Transform
 
-# local/npm modules
+# local modules
 ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
-
-###
-This sets up the include directories available on the system. It's run once per
-call to 'require', and since require is only callable once, it is therefore run
-once per program invocation. It scans the system for gcc's include directories
-and makes them available to the stream by the array sysIncludeDirs.
-
-TODO: fix this borked broken scheme and find something system-independent.
-###
-sysIncludeDirs = [
-  "/usr/local/include"
-  "/usr/include"
-  "/usr/include/linux"
-  "/usr/include/sys"
-  ]
-gccArchDirs = fs.readdirSync("/usr/lib/gcc").map((inode) ->
-  path.join "/usr/lib/gcc", inode)
-  .filter((inode) ->
-    fs.statSync(inode).isDirectory())
-# now get each version of gcc
-gccVersionDirs =
-  (fs.readdirSync gccADir for gccADir in gccArchDirs).map((verDirArr) ->
-    path.join gccADir, verDir for verDir in verDirArr).reduce((arr1, arr2) ->
-    arr1.concat arr2)
-# finally, add to system includes
-sysIncludeDirs = (path.join dir, "include" for dir in gccVersionDirs)
-  .concat sysIncludeDirs
 
 module.exports =
 class PreprocessStream extends Transform
   ###
   example inputs:
 
-  ps = new PreprocessStream "hello.c", ['/mnt/usr/include', "."],
+  ps = new PreprocessStream "hello.c", ['/mnt/usr/include', "."], "c"
     objLikeDefine:
       text: '(2 + 3)'
       type: 'object'
@@ -74,11 +49,13 @@ class PreprocessStream extends Transform
       args: ['x']
 
   ###
-  constructor: (@filename, @includeDirs, @defines, opts = {}) ->
+  constructor: (@filename, @includeDirs, @defines, @language, opts = {}) ->
     if not @ instanceof PreprocessStream
       return new PreprocessStream
     else
       Transform.call @, opts
+
+    @includeDirs = @includeDirs.concat GetIncludePaths(@language)
 
     @line = 1
     @isInComment = no

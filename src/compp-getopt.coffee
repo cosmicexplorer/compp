@@ -56,7 +56,7 @@ parseArgsFromArr = (argArr) ->
       trigraphs = yes
     else
       argv.push arg
-  return {
+  return
     exec: exec
     argv: argv
     help: help
@@ -66,7 +66,6 @@ parseArgsFromArr = (argArr) ->
     includes: includes
     output: output
     trigraphs: trigraphs
-  }
 
 module.exports =
   displayHelp: displayHelp

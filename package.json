@@ -2,7 +2,7 @@
   "name": "compp",
   "version": "0.0.0",
   "description": "A simple C preprocessor.",
-  "license": "GPL v3",
+  "license": "GPL-3.0",
   "author": "Danny McClanahan <danieldmcclanahan@gmail.com>",
   "scripts": {
     "prepublish": "make",
@@ -24,7 +24,9 @@
     "stream"
   ],
   "devDependencies": {
-    "coffee-script": "1.9.x"
+    "coffee-script": "1.9.x",
+    "dump-stream": "0.0.3",
+    "sleep": "^2.0.0"
   },
   "dependencies": {
     "c-format-stream": "0.0.x"
