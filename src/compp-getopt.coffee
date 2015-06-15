@@ -12,8 +12,10 @@ versionArgRegex = /^\-v/g
 displayHelp = ->
   console.log '''
     Usage: compp [-Dmacro[=defn]...] [-Umacro...]
-                 [-Idir] [-o outfile] [-t]
+                 [-Idir] [-o outfile] [-t] language
                  infile [outfile]
+    'language' can be specified as either 'c' or 'c++'. If 'outfile' is not
+    specified, or is '-', it is presumed to be stdout.
   '''
 
 displayVersion = ->
@@ -29,6 +31,7 @@ parseArgsFromArr = (argArr) ->
   undefs = []
   includes = []
   output = []
+  language = ""
   trigraphs = no
   # list of arguments without minuses
   argv = []

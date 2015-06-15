@@ -7,7 +7,7 @@ path = require 'path'
 compilers = ['gcc', 'clang']
 headerArgs = ['-v', '/dev/null', '-fsyntax-only']
 
-# looks like a hack, but this is standard syntax
+# looks like a hack, but this is standard syntax for gcc and clang
 includeStart = "#include <...> search starts here:"
 includeEnd = "End of search list."
 
@@ -21,10 +21,9 @@ parseAndSplit = (str) ->
 
 module.exports = (language) ->
   if language isnt "c" and language isnt "c++"
-    throw new Error "only c/c++ for now"
+    throw new Error "c/c++ are the only allowed languages"
   utils.uniquify(compilers.map((compiler) ->
     parseAndSplit(
       spawnSync(compiler, ['-x', language].concat headerArgs)
       .stderr.toString()))
     .reduce((arr1, arr2) -> arr1.concat arr2))
-

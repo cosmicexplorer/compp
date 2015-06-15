@@ -58,7 +58,7 @@ $(TEST_OUT_CPP_DIR)/%.c: $(TEST_IN_DIR)/%.c all
 # create compp's output files and diff (diff returns nonzero on different)
 # compp's default output is formatted with c-format-stream within the process
 $(TEST_OUT_COMPP_DIR)/%.c: $(TEST_IN_DIR)/%.c $(TEST_OUT_CPP_DIR)/%.c all
-	$(BIN_DRIVER) $< -o $@
+	$(BIN_DRIVER) c $< -o $@
 	diff $(word 2, $^) $@
 
 check: $(TEST_COMPP_OBJ)

@@ -1,7 +1,7 @@
 # BROKEN
 
 ###
-transform stream that performs a C preprocessing of the input
+transform stream that performs a C/C++ preprocessing of the input
 
 This stream is supposed to receive each chunk sent into _transform delimited by
 newline, except when backslash-newlines are used. e.g.:
@@ -39,23 +39,26 @@ class PreprocessStream extends Transform
   ###
   example inputs:
 
-  ps = new PreprocessStream "hello.c", ['/mnt/usr/include', "."], "c"
+  ps = new PreprocessStream "hello.c", ['/mnt/usr/include', "."], "c",
     objLikeDefine:
       text: '(2 + 3)'
       type: 'object'
     funcLikeDefine:
-      text: 'do { printf("hey"); x; } while(0);'
+      text: 'do { printf("hey"); x; } while(0)'
       type: 'function'
       args: ['x']
 
   ###
-  constructor: (@filename, @includeDirs, @defines, @language, opts = {}) ->
+  constructor: (@filename, @includeDirs, @defines, opts = {}) ->
     if not @ instanceof PreprocessStream
       return new PreprocessStream
     else
       Transform.call @, opts
 
-    @includeDirs = @includeDirs.concat GetIncludePaths(@language)
+    @language = opts.language
+    # every recursive instance of PreprocessStream will use the same headers
+    @includeDirs = @includeDirs.concat(opts.includeDirs or
+      GetIncludePaths(@language))
 
     @line = 1
     @isInComment = no
