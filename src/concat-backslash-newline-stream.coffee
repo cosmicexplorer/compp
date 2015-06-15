@@ -4,106 +4,37 @@
 # as if a new line had not been encountered. to be used in a c preprocessor and
 # applications with similar needs
 
-Transform = require('stream').Transform
+Transform = require('transform-stream-extensions')
 
 module.exports =
 class ConcatBackslashNewlinesStream extends Transform
-  constructor: (opts) ->
-    if not opts
-      opts = {}
+  constructor: (opts = {}) ->
     opts.readableObjectMode = yes
-    if not @ instanceof ConcatBackslashNewlinesStream
-      return new ConcatBackslashNewlinesStream opts
-    else
-      Transform.call @, opts
+    Transform.call @, opts
 
-    @heldLines = ""
-    @prevChar = ""
-    @isInString = no
-    if opts.filename
-      @filename = opts.filename
-    # else
-    #   @filename = "NO_FILE"
-    @curLine = 1
-    @curCol = 0
-    @allowTrigraphs = opts.allowTrigraphs
+    @curBlock = ""
 
-    cbError = (err) =>
-      @emit 'error', err
-    @on 'pipe', (src) =>
-      src.on 'error', cbError
-    @on 'unpipe', (src) =>
-      src.removeListener 'error', cbError
+  joinBackslashNewlines: (strArr) ->
+    retArr = []
+    i = 0
+    while i < strArr.length
+      el = strArr[i]
+      while el isnt "" and el[el.length - 1] is "\\"
+        el += '\n' + strArr[i+1]
+        ++i
+      retArr.push el + '\n'
+      ++i
+    retArr
 
-  # trigraph regexes
-  # MUST be done in here instead of preprocess-stream, since these are handled
-  # before tokenization
-  @hashTrigraphRegex: /\?\?=/g
-  @backslashTrigraphRegex: /\?\?\//g
-  @caratTrigraphRegex: /\?\?'/g
-  @leftBracketTrigraphRegex: /\?\?\(/g
-  @rightBracketTrigraphRegex: /\?\?\)/g
-  @pipeTrigraphRegex: /\?\?!/g
-  @leftBraceTrigraphRegex: /\?\?</g
-  @rightBraceTrigraphRegex: /\?\?>/g
-  @tildeTrigraphRegex: /\?\?\-/g
-
-  transformTrigraphs: (str) ->
-    if str.match(/\?\?./g) and not @allowTrigraphs
-      matchText = str.match(/\?\?./g)[0]
-      errText = "trigraph #{matchText} ignored"
-      errStr = "#{@filename}:#{@curLine}:#{@curCol}: warning: #{errText}"
-      errObj = new Error(errStr)
-      errObj.sourceStream = @constructor.name
-      errObj.isWarning = yes
-      errObj.isTrigraph = yes
-      @emit 'error', errObj
-      return str
-    else if str.match /\?\?/g
-      return str
-        .replace(@constructor.hashTrigraphRegex, "#")
-        .replace(@constructor.backslashTrigraphRegex, "\\")
-        .replace(@constructor.caratTrigraphRegex, "^")
-        .replace(@constructor.leftBracketTrigraphRegex, "[")
-        .replace(@constructor.rightBracketTrigraphRegex, "]")
-        .replace(@constructor.pipeTrigraphRegex, "|")
-        .replace(@constructor.tildeTrigraphRegex, "~")
-    else
-      return str
-
-  baseTransformFunc: (str) ->
-    @heldLines += str
-    @heldLines = @transformTrigraphs(@heldLines)
-    outStr = ""
-    for c in @heldLines
-      outStr += c
-      ++@curCol
-      if c is "'" or c is "\""
-        @isInString = not @isInString
-      if c is "\n" and @prevChar isnt "\\" and
-         not @isInString
-        @emit 'line', outStr
-        @push outStr
-        outStr = ""
-        ++@curLine
-        @curCol = 0
-      @prevChar = c
-    @heldLines = outStr
+  cutByLines: (str) ->
+    @curBlock += str
+    res = @curBlock.split('\n')
+    res = @joinBackslashNewlines res
+    numToPush = res.length - 2
+    @curBlock = res[res.length - 1]
+    for i in [0..(numToPush)] by 1
+      @push res[i]
 
   _transform: (chunk, enc, cb) ->
-    # continuously emitting error because otherwise the receiving stream
-    # literally may not get it in time
-    if not @filename
-      @emit 'error',
-      new Error "error: no filename given to #{@constructor.name}!"
-    str = chunk.toString()
-    @baseTransformFunc str
-    cb?()
-
-  _flush: (cb) ->
-    # ensure final newline just cause
-    if @heldLines.charAt(@heldLines.length - 1) isnt "\n"
-      @heldLines += "\n"
-    @emit 'line', @heldLines
-    @push @heldLines
+    @cutByLines chunk.toString()
     cb?()

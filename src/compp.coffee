@@ -14,104 +14,27 @@ module.exports =
   streams: comppStreams
   # inStream and outStream are optional arguments, made so that compp could be
   # more easily used by other javascript processes
-  run : (argv, inStreamArg, outStreamArg, errorCallback) ->
-    ###
-    accepts -D, -U, -I, -h, -v, -t, and -o arguments
-    note: later defines take precedence over earlier defines ("earlier" =>
-    earlier in argument list (closer to left))
+  run : (argv) ->
+    language = argv[2]
+    infile = argv[3]
 
-    argv[0] will be "node", and argv[1] will be the compiled
-    version of this script, due to the way these are compiled to js before
-    execution, and the way this is called from "compp" (an auxiliary script in
-    the repo's base directory). this is done because invoking the script through
-    the coffeescript interpreter "coffee compp.coffee ..." automatically splits
-    argv according to the argument parsing done in the coffeescript
-    frontend, making the traditional "-DDEFINE" cpp syntax fail. the only
-    resolution to this issue (calling this with "/usr/bin/env coffee --")
-    doesn't actually work. we will explicitly shift it and change to "coffee"
-    here to avoid confusion.
-    ###
-    if argv instanceof Array
-      argv.shift()
-      argv[0] = "coffee"
-      # parse and sanitize inputs
-      opts = comppGetOpt.parseArgsFromArr argv
-    else
-      # in case we just wanna pass the arguments directly
-      opts = argv
+    localIncludes = ["#{__dirname}"]
 
-    if opts.help
-      comppGetOpt.displayHelp()
+    # 'node compp.js <language> <infile>'
+    if argv.length isnt 4
+      console.log '''
+        Usage: compp language infile
+        'language' can be specified as either 'c' or 'c++'. Output prints to
+        stdout.
+        '''
       process.exit 1
-    if opts.version
-      comppGetOpt.displayVersion()
-      process.exit 0
-
-    if not (0 < opts.argv.length <= 2)
-      console.error "Please input at least one and at most two file(s) " +
-      "for preprocessing."
-      process.exit 1
-
-    if opts.output.length > 1 or
-       (opts.output.length is 1 and opts.argv.length is 2)
-      console.error "Please input at most one file for output."
-      process.exit 1
-
-    if opts.output.length is 0 and opts.argv.length is 2
-      opts.output = [opts.argv[1]]
-
-    defines = {}
-    for defStr in opts.defines
-      hasFoundEqualsSign = no
-      for i in [0..(defStr.length - 1)] by 1
-        if defStr.charAt(i) is "="
-          defines[defStr.substr(0, i)] =
-            text: defStr.substr(i + 1)
-            type: "object"
-          hasFoundEqualsSign = yes
-          break
-      if not hasFoundEqualsSign
-        defines[defStr] =
-          text: ""
-          type: "object"
-
-    # if any -D options exist, and any -U options
-    if opts.defines and opts.undefs
-      for undefStr in opts.undefs
-        # use 'in' for arrays, 'of' for hashes
-        for defineStr of defines
-          if undefStr is defineStr
-            delete defines[defineStr]
-
-    # let's include files in our own directory!
-    if opts.argv[0] is "-"
-      opts.includes.push path.resolve(__dirname)
-    else
-      opts.includes.push path.resolve(path.dirname(opts.argv[0]))
-
-    if inStreamArg
-      inStream = inStreamArg
-      opts.argv[0] = "-"
-    else if opts.argv[0] is "-"
-      inStream = process.stdin
-    else
-      inStream = fs.createReadStream(opts.argv[0])
-
-    if outStreamArg
-      outStream = outStreamArg
-      opts.output[0] = "-"
-    else if opts.output[0]
-      outStream = fs.createWriteStream(opts.output[0])
-    else
-      outStream = process.stdout
 
     # all the streams used here propagate errors, so an uncaught error will
-    # continue onward into the CFormatStream.
+    # continue onward into the CFormatStream, and if uncaught, will blow up
     cbns = new comppStreams.ConcatBackslashNewlinesStream
-       filename: opts.argv[0]
-       allowTrigraphs: opts.trigraphs
+       filename: infile
     pps = new comppStreams.PreprocessStream(
-      opts.argv[0], opts.includes, defines)
+      infile, opts.includes, defines)
     cfs = new comppStreams.CFormatStream
       numNewlinesToPreserve: 0
       indentationString: "  "

@@ -24,11 +24,12 @@
     "stream"
   ],
   "devDependencies": {
+    "byline": "4.2.x",
     "coffee-script": "1.9.x",
-    "dump-stream": "0.0.3",
-    "sleep": "^2.0.0"
+    "dump-stream": "0.0.3"
   },
   "dependencies": {
-    "c-format-stream": "0.0.x"
+    "c-format-stream": "0.0.x",
+    "transform-stream-extensions": "0.0.x"
   }
 }
