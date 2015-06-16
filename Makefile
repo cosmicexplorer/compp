@@ -67,10 +67,10 @@ $(UNIT_TEST_DIR)/%/output: $(UNIT_TEST_DIR)/%/input \
 # # these are the output of compp!
 # INTEGRATION_TEST_COMPP_OBJ := $(addsuffix .compp.out $(INTEGRATION_TEST_INPUTS))
 
-# %.cpp.out: % all
+# %.cpp.out: %
 # 	cpp $< -P | $(FORMAT_OUT) - $@ -n0 -s2
-# %.compp.out: %.cpp.out
-# 	$(BIN_DRIVER) c $< -o $@
+# %.compp.out: % %.cpp.out $(BIN_DRIVER)
+# 	$(word 3, $^) c $< -o $@
 # 	diff $(word 2, $^) $@
 
 check: $(UNIT_TEST_OUTPUTS)
