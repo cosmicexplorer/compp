@@ -5,6 +5,9 @@ path = require 'path'
 compilers =
   c: ['gcc', 'clang']
   cpp: ['g++', 'clang++']
+langArg =
+  c: "c"
+  cpp: "c++"
 headerArgs = ['-v', '/dev/null', '-fsyntax-only']
 
 # looks like a hack, but this is standard syntax for gcc and clang
@@ -12,6 +15,7 @@ includeStart = "#include <...> search starts here:"
 includeEnd = "End of search list."
 
 parseAndSplit = (str) ->
+  return [] if str is ""
   str.substring(str.indexOf(includeStart) + includeStart.length,
     str.indexOf(includeEnd))
     .split('\n').filter((str) -> str isnt "") # first and last line are empty
@@ -19,11 +23,12 @@ parseAndSplit = (str) ->
     .map (str) ->
       path.resolve str.substr 1
 
-module.exports = (language) ->
-  if language isnt "c" and language isnt "cpp"
-    throw new Error "c/cpp are the only allowed languages"
-  utils.uniquify(compilers[language].map((compiler) ->
-    parseAndSplit(
-      spawnSync(compiler, ['-x', language].concat headerArgs)
-      .stderr.toString()))
+module.exports = (lang) ->
+  if not compilers[lang]
+    throw new Error "language #{lang} not recognized"
+  utils.uniquify(compilers[lang].map((compiler) ->
+    parseAndSplit(((proc) ->
+      if proc.status is 0
+        proc.stderr.toString()
+      else "")(spawnSync(compiler, ['-x', langArg[lang]].concat headerArgs))))
     .reduce((arr1, arr2) -> arr1.concat arr2))

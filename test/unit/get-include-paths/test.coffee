@@ -11,10 +11,12 @@ HeadersToSearchFor =
 isSubset = (subset, superset) ->
   subset
     .map((el) -> superset.indexOf el)
-    .filter((el) -> el isnt -1).length isnt 0
+    .filter((el) -> el isnt -1)
+    .length is subset.length
 
 checkLanguage = (lang) ->
   Q.all(GetIncludePaths(lang).map((dir) ->
+    console.log "#{lang} header dir: #{dir}"
     deferred = Q.defer()
     fs.readdir dir, (err, files) ->
       if err
@@ -22,10 +24,12 @@ checkLanguage = (lang) ->
       else
         deferred.resolve files
     deferred.promise)).then((arr) ->
+      console.log "lang: #{lang}"
+      console.log arr
       if not isSubset(HeadersToSearchFor[lang], arr.reduce (a, b) -> a.concat b)
         throw new Error "#{lang} headers not found!"
       else
-        console.log "#{lang} headers found")
+        console.log "#{lang} headers found appropriately").done()
 
 # run it
 checkLanguage "c"

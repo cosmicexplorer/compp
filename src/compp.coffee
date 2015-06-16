@@ -32,25 +32,22 @@ module.exports =
       numNewlinesToPreserve: 0
       indentationString: "  "
 
-    if errorCallback
-      cfs.on 'error', errorCallback
-    else
-      cfs.on 'error', (err) ->
-        if err.isWarning
-          if err.sourceStream
-            console.error "From #{err.sourceStream}:"
-          else
-            console.error "No source stream specified:"
-          console.error err.message
+    cfs.on 'error', (err) ->
+      if err.isWarning
+        if err.sourceStream
+          console.error "From #{err.sourceStream}:"
         else
-          if err.sourceStream
-            console.error err.message
-          else if err.code is 'ENOENT' # probably isn't stdin; assume path works
-            console.error "Input file #{err.path} not found."
-          else if err.code is 'EISDIR'
-            console.error "Input file #{err.path} is a directory."
-          else                    # unrecognized error
-              console.error err.stack
-          process.exit 1
+          console.error "No source stream specified:"
+        console.error err.message
+      else
+        if err.sourceStream
+          console.error err.message
+        else if err.code is 'ENOENT' # probably isn't stdin; assume path works
+          console.error "Input file #{err.path} not found."
+        else if err.code is 'EISDIR'
+          console.error "Input file #{err.path} is a directory."
+        else                    # unrecognized error
+            console.error err.stack
+        process.exit 1
 
     inStream.pipe(cbns).pipe(pps).pipe(cfs).pipe(process.stdout)

@@ -1,86 +1,30 @@
-# BROKEN
-
-###
-transform stream that performs a C/C++ preprocessing of the input
-
-This stream is supposed to receive each chunk sent into _transform delimited by
-newline, except when backslash-newlines are used. e.g.:
-'int a = \
-     3;
-'
-would be an appropriate 'line' input into this stream. Unless you are trying
-some strange experiment, you will want to write not into this stream directly,
-but into an instance of ConcatBackslashNewlinesStream, in this same
-directory. The file 'compp-streams' provides access to all required streams to
-make everything simple and fun.
-
-Also, this is meant to be piped into. There are two ways to approach this; if
-you must manually write into this instead of piping another stream, you can use
-a PassThrough stream to hold your writes, and pipe that into this
-stream. Alternatively, two events are emitted when the input stream is supposed
-to stop and restart writing to this stream: 'pause-input-stream' and
-'resume-input-stream'. You can use these to manage when you are and are not
-allowed to write to the stream.
-
-Bottom line, just use the ConcatBackslashNewlinesStream and everything is
-easy. If not, you will have a rough time, but it is grudgingly allowed.
-###
-
 # native modules
 fs = require 'fs'
 path = require 'path'
-Transform = require('stream').Transform
-
+# npm modules
+Transform = require 'transform-stream-extensions'
 # local modules
-ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
+ConcatBackslashNewlineStream = require './concat-backslash-newline-stream'
+utils = require './utilities'
 
 module.exports =
 class PreprocessStream extends Transform
-  ###
-  example inputs:
+  constructor: (@filename, includeDirs, @language, @defines, opts = {}) ->
+    super opts
 
-  ps = new PreprocessStream "hello.c", ['/mnt/usr/include', "."], "c",
-    objLikeDefine:
-      text: '(2 + 3)'
-      type: 'object'
-    funcLikeDefine:
-      text: 'do { printf("hey"); x; } while(0)'
-      type: 'function'
-      args: ['x']
-
-  ###
-  constructor: (@filename, @includeDirs, @defines, opts = {}) ->
-    if not @ instanceof PreprocessStream
-      return new PreprocessStream
-    else
-      Transform.call @, opts
-
-    @language = opts.language
-    # every recursive instance of PreprocessStream will use the same headers
-    @includeDirs = @includeDirs.concat(opts.includeDirs or
-      GetIncludePaths(@language))
+    @includeDirs =
+      system: utils.uniquify(includeDirs.system or GetIncludePaths(@language))
+      local: utils.uniquify(["."].concat includeDirs.local or [])
 
     @line = 1
     @isInComment = no
     # text of the line currently being processed; set in _transform
     @curLine = ""
 
-    # when a file is included, we stick the number of times it is included in
-    # here. if any of those reach above a certain point, we stop it and throw an
-    # error.
+    # count of includes to stop cycles
     @includeDict = {}
 
-    # emit 'error' and track input stream
-    @src = null
-    cbError = (err) =>
-      @emit 'error', err
-    @on 'pipe', (src) =>
-      src.on 'error', cbError
-      @src = src
-    @on 'unpipe', (src) =>
-      src.removeListener 'error', cbError
-      @src = null
-
+    @ifStack = []
     ###
     stack of #if directives
     each element is laid out as:
@@ -91,10 +35,9 @@ class PreprocessStream extends Transform
       ifFile: "test.c"
       ifText: "#ifdef ASDF"
     }
-    hasBeenTrue is true so we know whether to process "else" statements
-    isCurrentlyTrue tells us whether we're processing the current branch of if
+    hasBeenTrue is true so we know whether to process "else" statements, and
+    isCurrentlyTrue tells us whether we're processing the current if branch
     ###
-    @ifStack = []
 
   updateLineCount: () ->
     @line += @curLine.match(@constructor.newlineRegex).length
@@ -299,7 +242,7 @@ class PreprocessStream extends Transform
     @src?.pause()
     fs.createReadStream(filePath)
       # this is required
-      .pipe(new ConcatBackslashNewlinesStream
+      .pipe(new ConcatBackslashNewlineStream
         filename: @filename)
       .pipe(headerStream)
       # but don't pipe into CFormatStream; the output of this stream (from @push
