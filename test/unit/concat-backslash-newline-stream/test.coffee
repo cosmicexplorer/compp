@@ -1,5 +1,3 @@
-# run as "coffee test-concat.coffee file"
-
 DumpStream = require 'dump-stream'
 CBStream = require '../../../src/concat-backslash-newline-stream'
 
@@ -13,7 +11,7 @@ bylineLines = 0
 bylineBackslashLines = 0
 allChars = 0
 
-getAllChars = (filename) ->
+getAllCharsStream = (filename) ->
   fs.createReadStream(filename).pipe(new DumpStream)
 
 getConcatLinesAndChars = (filename) ->
@@ -23,8 +21,9 @@ getConcatLinesAndChars = (filename) ->
     concatChars += obj.length
     process.stdout.write "<!>" + obj + "<?>"
 
+# run it
 getConcatLinesAndChars(process.argv[2]).on 'end', ->
-  s = getAllChars(process.argv[2])
+  s = getAllCharsStream(process.argv[2])
   s.on 'finish', ->
     str = s.dump()
     allChars = str.length

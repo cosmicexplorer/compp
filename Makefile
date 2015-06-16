@@ -55,6 +55,7 @@ TEST_DIR := test
 UNIT_TEST_DIR := $(TEST_DIR)/unit
 UNIT_TEST_INPUTS := $(wildcard $(UNIT_TEST_DIR)/*)
 UNIT_TEST_OUTPUTS := $(addsuffix /output, $(UNIT_TEST_INPUTS))
+# the .js file requirement is so syntax errors in the source file are checked
 $(UNIT_TEST_DIR)/%/output: $(UNIT_TEST_DIR)/%/input \
 	$(UNIT_TEST_DIR)/%/test.coffee $(OBJ_DIR)/%.js
 	$(COFFEE_CC) $(word 2, $^) $< > $@
