@@ -1,10 +1,10 @@
-# interestingly enough, this should work on cygwin installs as well
-
 spawnSync = require('child_process').spawnSync
 utils = require './utilities'
 path = require 'path'
 
-compilers = ['gcc', 'clang']
+compilers =
+  c: ['gcc', 'clang']
+  cpp: ['g++', 'clang++']
 headerArgs = ['-v', '/dev/null', '-fsyntax-only']
 
 # looks like a hack, but this is standard syntax for gcc and clang
@@ -20,9 +20,9 @@ parseAndSplit = (str) ->
       path.resolve str.substr 1
 
 module.exports = (language) ->
-  if language isnt "c" and language isnt "c++"
-    throw new Error "c/c++ are the only allowed languages"
-  utils.uniquify(compilers.map((compiler) ->
+  if language isnt "c" and language isnt "cpp"
+    throw new Error "c/cpp are the only allowed languages"
+  utils.uniquify(compilers[language].map((compiler) ->
     parseAndSplit(
       spawnSync(compiler, ['-x', language].concat headerArgs)
       .stderr.toString()))
