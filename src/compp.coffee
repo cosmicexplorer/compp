@@ -18,8 +18,6 @@ module.exports =
     language = argv[2]
     infile = argv[3]
 
-    localIncludes = ["#{__dirname}"]
-
     # 'node compp.js <language> <infile>'
     if argv.length isnt 4
       console.log '''

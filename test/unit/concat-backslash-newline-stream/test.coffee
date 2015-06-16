@@ -1,7 +1,7 @@
 # run as "coffee test-concat.coffee file"
 
 DumpStream = require 'dump-stream'
-CBStream = require '../src/concat-backslash-newline-stream'
+CBStream = require '../../../src/concat-backslash-newline-stream'
 
 fs = require 'fs'
 
