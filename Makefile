@@ -53,12 +53,15 @@ TEST_DIR := test
 
 # unit testing
 UNIT_TEST_DIR := $(TEST_DIR)/unit
-UNIT_TEST_INPUTS := $(wildcard $(UNIT_TEST_DIR)/*)
-UNIT_TEST_OUTPUTS := $(addsuffix /output, $(UNIT_TEST_INPUTS))
+UNIT_TEST_DIRS := $(wildcard $(UNIT_TEST_DIR)/*)
+UNIT_TEST_OUTPUTS := $(addsuffix /output, $(UNIT_TEST_DIRS))
 # the .js file requirement is so syntax errors in the source file are checked
-$(UNIT_TEST_DIR)/%/output: $(UNIT_TEST_DIR)/%/input \
-	$(UNIT_TEST_DIR)/%/test.coffee $(OBJ_DIR)/%.js
-	$(COFFEE_CC) $(word 2, $^) $< > $@
+# you can have other intermediate files, but they should be cleaned up by the
+# test, even if the test terminates with an error, and a successful test should
+# have no other files
+$(UNIT_TEST_DIR)/%/output: $(UNIT_TEST_DIR)/%/test.coffee \
+$(UNIT_TEST_DIR)/%/input $(OBJ_DIR)/%.js
+	$(COFFEE_CC) $< $(word 2, $^) > $@
 
 # # integration testing (not happening rn)
 # INTEGRATION_TEST_DIR := $(TEST_DIR)/integration

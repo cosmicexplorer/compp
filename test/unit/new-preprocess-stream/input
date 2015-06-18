@@ -1,0 +1,32 @@
+/* expected-output format:
+
+path/to/start-file:start-line:start-col:start-offset, path/to/end-file:end-line:end-col:end-offset, event-type, entity-type, entity-name(, \[invocation(,invocation)*\] "further-expansions")*
+
+event-type can be: add-define, un-define, use-define, add-header
+entity-type can be: object, function, header
+entity-name will have quotes or <> brackets around it, depending upon whether it is a local or system header
+"further-expansions" are the expansions of the macro, if the event-type is use-define or add-define. macros which call other macros will have more than one; simple macros will have just one. */
+
+/* does it build? does it count comments properly? */
+
+#define A 3
+
+A
+
+  #define AA 2
+
+/* does it handle includes? does it still get the bookkeeping right? */
+
+#include "hello.h"
+
+/* does it handle function-like macros? */
+
+/* does it handle undefs? */
+
+/* does it handle #if stacks? */
+
+/* does it handle nested defines? */
+
+#define C 34
+#define D C + 2
+D

@@ -10,7 +10,7 @@ module.exports =
 class ConcatBackslashNewlinesStream extends Transform
   constructor: (opts = {}) ->
     opts.readableObjectMode = yes
-    Transform.call @, opts
+    super opts
 
     @curBlock = ""
 

@@ -6,7 +6,7 @@ GetIncludePaths = require '../../../src/get-include-paths'
 
 HeadersToSearchFor =
   c: ["stdio.h"]
-  cpp: ["iostream"]
+  "c++": ["iostream"]
 
 isSubset = (subset, superset) ->
   subset
@@ -33,4 +33,4 @@ checkLanguage = (lang) ->
 
 # run it
 checkLanguage "c"
-checkLanguage "cpp"
+checkLanguage "c++"

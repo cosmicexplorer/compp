@@ -2,8 +2,8 @@
 fs = require 'fs'
 path = require 'path'
 # local modules
-comppGetOpt = require "#{__dirname}/compp-getopt"
-comppStreams = require "#{__dirname}/compp-streams"
+comppGetOpt = require "./compp-getopt"
+comppStreams = require "./compp-streams"
 
 # frontend and argument processor for compp
 # calls to analyzeLines to do all the heavy lifting
@@ -22,17 +22,12 @@ module.exports =
         '''
       process.exit 1
 
-    # all the streams used here propagate errors, so an uncaught error will
-    # continue onward into the CFormatStream, and if uncaught, will blow up
     cbns = new comppStreams.ConcatBackslashNewlinesStream
        filename: infile
     pps = new comppStreams.PreprocessStream(
       infile, opts.includes, defines)
-    cfs = new comppStreams.CFormatStream
-      numNewlinesToPreserve: 0
-      indentationString: "  "
 
-    cfs.on 'error', (err) ->
+    pps.on 'error', (err) ->
       if err.isWarning
         if err.sourceStream
           console.error "From #{err.sourceStream}:"
@@ -50,4 +45,4 @@ module.exports =
             console.error err.stack
         process.exit 1
 
-    inStream.pipe(cbns).pipe(pps).pipe(cfs).pipe(process.stdout)
+    inStream.pipe(cbns).pipe(pps).pipe(process.stdout)

@@ -4,10 +4,7 @@ path = require 'path'
 
 compilers =
   c: ['gcc', 'clang']
-  cpp: ['g++', 'clang++']
-langArg =
-  c: "c"
-  cpp: "c++"
+  "c++": ['g++', 'clang++']
 headerArgs = ['-v', '/dev/null', '-fsyntax-only']
 
 # looks like a hack, but this is standard syntax for gcc and clang
@@ -30,5 +27,5 @@ module.exports = (lang) ->
     parseAndSplit(((proc) ->
       if proc.status is 0
         proc.stderr.toString()
-      else "")(spawnSync(compiler, ['-x', langArg[lang]].concat headerArgs))))
+      else "")(spawnSync(compiler, ['-x', lang].concat headerArgs))))
     .reduce((arr1, arr2) -> arr1.concat arr2))

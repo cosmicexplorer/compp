@@ -1,6 +1,5 @@
 ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
 PreprocessStream = require './preprocess-stream'
-CFormatStream = require 'c-format-stream'
 
 ###
 example usage:
@@ -26,5 +25,3 @@ module.exports =
   ConcatBackslashNewlinesStream: ConcatBackslashNewlinesStream
   # do preprocessing
   PreprocessStream: PreprocessStream
-  # format output and pretty-print
-  CFormatStream: CFormatStream

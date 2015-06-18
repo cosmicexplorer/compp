@@ -39,14 +39,11 @@ class PreprocessStream extends Transform
     isCurrentlyTrue tells us whether we're processing the current if branch
     ###
 
-  updateLineCount: () ->
+  updateLineCount: ->
     @line += @curLine.match(@constructor.newlineRegex).length
 
   getErrObj: (colNum, errText, isWarningOpts) ->
-    if isWarningOpts?.isWarning
-      warnErrStr = "warning"
-    else
-      warnErrStr = "error"
+    warnErrStr = if isWarningOpts?.isWarning then "warning" else "error"
     errStr = "#{@filename}:#{@line}:#{colNum}: #{warnErrStr}: #{errText}\n"
     errStr += @curLine
     # get the cute little carat, but only if the input spans one line
@@ -54,7 +51,7 @@ class PreprocessStream extends Transform
       for i in [1..(colNum - 1)] by 1
         errStr += " "
       errStr += "^~~\n"
-    errObj = new Error(errStr)
+    errObj = new Error errStr
     errObj.sourceStream = @constructor.name
     errObj.isWarning = isWarningOpts?.isWarning
     return errObj

@@ -21,9 +21,11 @@ getConcatLinesAndChars = (filename) ->
     concatChars += obj.length
     process.stdout.write "<!>" + obj + "<?>"
 
+infile = process.argv[2]
+
 # run it
-getConcatLinesAndChars(process.argv[2]).on 'end', ->
-  s = getAllCharsStream(process.argv[2])
+getConcatLinesAndChars(infile).on 'end', ->
+  s = getAllCharsStream(infile)
   s.on 'finish', ->
     str = s.dump()
     allChars = str.length
