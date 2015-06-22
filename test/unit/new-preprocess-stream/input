@@ -1,6 +1,6 @@
 /* expected-output format:
 
-path/to/start-file:start-line:start-col:start-offset, path/to/end-file:end-line:end-col:end-offset, event-type, entity-type, entity-name(, \[invocation(,invocation)*\] "further-expansions")*
+^path/to/start-file:start-line:start-col:start-offset,path/to/end-file:end-line:end-col:end-offset,event-type,entity-type,entity-name,path/to/ref-start-file:ref-start-line:ref-start-col:ref-start-offset,path/to/ref-end-file:ref-end-line:ref-end-col:ref-end-offset$
 
 event-type can be: add-define, un-define, use-define, add-header
 entity-type can be: object, function, header
