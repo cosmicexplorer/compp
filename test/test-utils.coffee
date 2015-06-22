@@ -7,5 +7,5 @@ outputDiffs: (diffsList, stream) ->
     color = switch
       when part.added then 'green'
       when part.removed then 'red'
-      else 'grey'
+      else 'white'
     stream.write colors[color](part.value)

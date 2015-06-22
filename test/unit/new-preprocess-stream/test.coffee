@@ -6,8 +6,6 @@ TestUtils = require '../../test-utils'
 
 infile = process.argv[2]
 
-console.error infile
-
 s = fs.createReadStream(infile)
   .pipe(new NewPreprocessStream infile, "c")
   .pipe(new DumpStream).on 'finish', ->

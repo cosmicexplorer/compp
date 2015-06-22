@@ -15,7 +15,8 @@ getAllCharsStream = (filename) ->
   fs.createReadStream(filename).pipe(new DumpStream)
 
 getConcatLinesAndChars = (filename) ->
-  fs.createReadStream(filename).pipe(new CBStream).on 'data', (obj) ->
+  fs.createReadStream(filename).pipe(new CBStream).on 'data', (buf) ->
+    obj = buf.toString()
     ++concatBackslashLines
     concatLines += (obj.match(/\n/g) or []).length
     concatChars += obj.length

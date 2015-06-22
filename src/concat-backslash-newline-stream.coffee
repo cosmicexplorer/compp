@@ -1,15 +1,8 @@
-# simple transform stream which emits a 'line' event on each consumed input line
-# in addition, whenever "\\\n" appears in the string (a backslash immediately
-# followed by a newline), it will transform "\\\n" -> " " and continue onwards
-# as if a new line had not been encountered. to be used in a c preprocessor and
-# applications with similar needs
-
-Transform = require('transform-stream-extensions')
+Transform = require 'transform-stream-extensions'
 
 module.exports =
 class ConcatBackslashNewlinesStream extends Transform
   constructor: (opts = {}) ->
-    opts.readableObjectMode = yes
     super opts
 
     @curBlock = ""

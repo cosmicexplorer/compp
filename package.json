@@ -27,7 +27,7 @@
     "cli-color": "^1.0.0",
     "coffee-script": "1.9.x",
     "diff": "^1.4.0",
-    "dump-stream": "0.0.3",
+    "dump-stream": "0.0.7",
     "q": "^1.4.1"
   },
   "dependencies": {

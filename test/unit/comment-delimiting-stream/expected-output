@@ -1,0 +1,16 @@
+{"string":"a ","isComment":false}
+{"string":"/* asd */","isComment":true}
+{"string":" s ","isComment":false}
+{"string":"// asd\n","isComment":true}
+{"string":"    ","isComment":false}
+{"string":"/* as*/","isComment":true}
+{"string":"//\n","isComment":true}
+{"string":"    sdf\n    ","isComment":false}
+{"string":"// asdf\n","isComment":true}
+{"string":"    ","isComment":false}
+{"string":"// asdf /* */asdf // asd /*\n","isComment":true}
+{"string":"    as     ","isComment":false}
+{"string":"/**/","isComment":true}
+{"string":"\n    ? asdf ","isComment":false}
+{"string":"/*\n           // */","isComment":true}
+{"string":"\n    s\n","isComment":false}

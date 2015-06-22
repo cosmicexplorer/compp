@@ -1,0 +1,60 @@
+fs = require 'fs'
+diff = require 'diff'
+CommentDelimitingStream = require '../../../src/comment-delimiting-stream'
+DumpStream = require 'dump-stream'
+Transform = require 'transform-stream-extensions'
+TestUtils = require '../../test-utils'
+
+infile = process.argv[2]
+
+class StringifierStream extends Transform
+  constructor: (opts = {}) ->
+    opts.writableObjectMode = yes
+    super opts
+
+  _transform: (chunk, enc, cb) ->
+    @push JSON.stringify(chunk) + '\n'
+    cb?()
+
+s = fs.createReadStream(infile)
+  .pipe(new CommentDelimitingStream)
+  .pipe(new StringifierStream)
+  .pipe(new DumpStream).on 'finish', ->
+    res = diff.diffLines(s.dump(),
+      fs.readFileSync("#{__dirname}/expected-output").toString())
+    if res.filter((el) -> el.added or el.removed).length isnt 0
+      console.error "FAILED:"
+      console.error "DIFF:"
+      TestUtils.outputDiffs(res, process.stderr)
+      process.exit 1
+    checkLengths()
+
+class ConcatStringStream extends Transform
+  constructor: (opts = {}) ->
+    opts.writableObjectMode = yes
+    super opts
+
+  _transform: (chunk, enc, cb) ->
+    @push chunk.string
+    cb?()
+
+checkLengths = ->
+  s = fs.createReadStream(infile)
+    .pipe(new CommentDelimitingStream)
+    .pipe(new ConcatStringStream)
+    .pipe(new DumpStream).on 'finish', ->
+      realFile = fs.readFileSync(infile).toString()
+      realChars = realFile.length
+      realNewlines = (realFile.match(/\n/g) or []).length
+      streamFile = s.dump()
+      streamChars = streamFile.length
+      streamNewlines = (streamFile.match(/\n/g) or []).length
+      if realChars isnt streamChars
+        console.error "FAILED:"
+        console.error "realChars: #{realChars} != #{streamChars} (streamChars)"
+        process.exit 1
+      if realNewlines isnt streamNewlines
+        console.error "FAILED:"
+        console.error "realNewlines: #{realNewlines} != #{streamNewlines} " +
+          "(streamNewlines)"
+        process.exit 1
