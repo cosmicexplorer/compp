@@ -1,16 +1,17 @@
-{"string":"a ","isComment":false}
-{"string":"/* asd */","isComment":true}
-{"string":" s ","isComment":false}
-{"string":"// asd\n","isComment":true}
-{"string":"    ","isComment":false}
-{"string":"/* as*/","isComment":true}
-{"string":"//\n","isComment":true}
-{"string":"    sdf\n    ","isComment":false}
-{"string":"// asdf\n","isComment":true}
-{"string":"    ","isComment":false}
-{"string":"// asdf /* */asdf // asd /*\n","isComment":true}
-{"string":"    as     ","isComment":false}
-{"string":"/**/","isComment":true}
-{"string":"\n    ? asdf ","isComment":false}
-{"string":"/*\n           // */","isComment":true}
-{"string":"\n    s\n","isComment":false}
+{"string":"\na*/ *","type":"text"}
+{"string":"/*/\\a\n\"s\"\\\\ /*\n*/","type":"blockComment"}
+{"string":"\\/","type":"text"}
+{"string":"/*/*/","type":"blockComment"}
+{"string":"/*\n\n\n\"a\\a/*a/**/","type":"blockComment"}
+{"string":"a","type":"text"}
+{"string":"//aas//\n","type":"lineComment"}
+{"string":"*","type":"text"}
+{"string":"/*/\\aa*/","type":"blockComment"}
+{"string":" ","type":"text"}
+{"string":"\"//\\//a*/s\\\\/*a/*as/*\"","type":"string"}
+{"string":" ","type":"text"}
+{"string":"/*\"\"ss*/","type":"blockComment"}
+{"string":"s\\asa\n","type":"text"}
+{"string":"///*\"s//s//\n","type":"lineComment"}
+{"string":"//s/*  a \\/*aa\\\\\n","type":"lineComment"}
+{"string":"\"\n","type":"string"}

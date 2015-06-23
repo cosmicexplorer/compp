@@ -1,4 +1,3 @@
-ConcatBackslashNewlinesStream = require './concat-backslash-newline-stream'
 PreprocessStream = require './preprocess-stream'
 
 ###
@@ -21,7 +20,5 @@ c-format-stream npm module and associated github
 ###
 
 module.exports =
-  # get input by line
-  ConcatBackslashNewlinesStream: ConcatBackslashNewlinesStream
   # do preprocessing
   PreprocessStream: PreprocessStream

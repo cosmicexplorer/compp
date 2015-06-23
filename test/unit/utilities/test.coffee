@@ -9,4 +9,8 @@ res = utils.uniquify(inputArr).sort((a, b) -> a > b)
 if [1..10].every((el) -> res.indexOf(el) + 1 == el)
   console.log res
 else
-  throw new Error "array was not uniquified!"
+  throw new Error "array was not uniquified correctly!"
+
+for el in ".?*+^$[\]\\(){}|-"
+  if utils.quoteRegexString(el) isnt "\\#{el}"
+    throw new Error "regex string was not quoted correctly!"

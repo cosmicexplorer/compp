@@ -1,11 +1,12 @@
 # takes in stream of text and returns objects, formatted as:
 # {
 #   string: "<text>"
-#   isComment: <boolean>
+#   type: "(string|comment|text)"
 # }
 # the concatenation of all the "string" portions is the same as the input text
 # this splits up c and c++ comments alike since c99
 
+utils = require './utilities'
 Transform = require 'transform-stream-extensions'
 
 module.exports =
@@ -16,40 +17,89 @@ class CommentDelimitingStream extends Transform
 
     @curBlock = ""
 
-    # no, "blockComment", or "lineComment"
-    @state = no
+    # "string", "text", "blockComment", or "lineComment"
+    @state = "text"
 
-  minimum: (a, b) ->
-    switch
-      when a < b and a isnt -1 then [a, 0]
-      else [b, 1]
+  @NonTextTokenMap:
+    '//': 'lineComment'
+    '/*': 'blockComment'
+    '"': 'string'
+
+  @TerminatingTokenMap:
+    'blockComment': '*/'
+    'string': '"'
+    'lineComment': '\n'
+
+  nextStateFromText: (tokArr) ->
+    [tokArr[0], @constructor.NonTextTokenMap[tokArr[1]]]
+
+  getTermFromInitTok: (tok) ->
+    @constructor.TerminatingTokenMap[@constructor.NonTextTokenMap[tok]]
+
+  indexAndNextState: (str, tok) ->
+    [
+      @indexOfStringWithoutBackslash(tok, str),
+      @constructor.NonTextTokenMap[tok]
+    ]
+
+  getNextNonText: (str) ->
+    res = Object.keys(@constructor.NonTextTokenMap).map((tok) =>
+      @indexAndNextState str, tok).filter((pair) ->
+      pair[0] isnt -1).sort((pair1, pair2) ->
+      pair1[0] - pair2[0])
+    if res?.length > 0
+      # console.error [str, res]
+      res[0]
+    else
+      [-1, ""]
+
+  # gets index of string within another string, assuming normal backslashing
+  indexOfStringWithoutBackslash: (strAsRegex, str) ->
+    quotedStr = utils.quoteRegexString strAsRegex
+    reg = new RegExp("(^|[^\\\\]|(\\\\\\\\)+)#{quotedStr}", "gm")
+    matchObj = reg.exec str
+    if matchObj
+      matchObj.index + matchObj[1].length
+    else -1
+
+  tokenFromState: (state) ->
+    Object.keys(@constructor.NonTextTokenMap).filter((key) =>
+      @constructor.NonTextTokenMap[key] is state)[0]
+
+  minusOneOrAdd: (num, addition) ->
+    if num is -1 then -1 else num + addition
 
   mapState: (state, block) ->
-    nextIndex =
-      switch state
-        when "blockComment" then block.indexOf("*/") + 2
-        when "lineComment" then block.indexOf("\n") + 1
-        else @minimum block.indexOf("//"), block.indexOf("/*")
-    nextState =
-      switch state
-        when "blockComment" then no
-        when "lineComment" then no
-        else
-          if nextIndex[1] is 0
-            "lineComment"
-          else
-            "blockComment"
-    nextIndex = nextIndex[0] if nextIndex.length
-    [nextIndex, nextState]
+    startPast = @tokenFromState state
+    endPast = startPast + @constructor.TerminatingTokenMap[state]?.length
+    switch state
+      when "blockComment"
+        [
+          @minusOneOrAdd(@indexOfStringWithoutBackslash('*/',block[2..]), 4),
+          "text"
+        ]
+      when "string"
+        [
+          @minusOneOrAdd(@indexOfStringWithoutBackslash('"',block[1..]),2),
+          "text"
+        ]
+      when "lineComment"
+        [
+          @minusOneOrAdd(@indexOfStringWithoutBackslash('\n',block[2..]), 3),
+          "text"
+        ]
+      when "text"
+        @getNextNonText block
 
   pushNextSection: ->
     [endIndex, nextState] = @mapState @state, @curBlock
     if endIndex isnt -1
       nextString = @curBlock.substr 0, endIndex
+      # console.error [endIndex,  nextString, "#{@state}->#{nextState}"]
       if nextString.length isnt 0
         @push
           string: nextString
-          isComment: @state isnt no
+          type: @state
       @state = nextState
       @curBlock = @curBlock.substr endIndex
     endIndex
@@ -69,5 +119,5 @@ class CommentDelimitingStream extends Transform
     if @curBlock.length isnt 0
       @push
         string: @curBlock
-        isComment: @state isnt no
+        type: @state
     cb?()

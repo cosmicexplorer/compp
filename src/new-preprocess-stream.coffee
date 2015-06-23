@@ -4,7 +4,6 @@ path = require 'path'
 # npm
 Transform = require 'transform-stream-extensions'
 # local
-ConcatBackslashNewlineStream = require "./concat-backslash-newline-stream"
 utils = require './utilities'
 GetIncludePaths = require './get-include-paths'
 
