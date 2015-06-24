@@ -12,8 +12,6 @@ class PreprocessStream extends Transform
   constructor: (@filename, @language, @defines = {}, includeDirs = {},
     opts = {}) ->
     opts.objectMode = yes
-    opts.writeableObjectMode = yes
-    opts.readableObjectMode = yes
     super opts
 
     @includeDirs =

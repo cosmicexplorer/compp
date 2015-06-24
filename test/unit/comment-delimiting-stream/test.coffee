@@ -6,16 +6,18 @@ Transform = require 'transform-stream-extensions'
 TestUtils = require '../../test-utils'
 
 infile = process.argv[2]
+outfile = "#{__dirname}/output"
+compare_outfile = "#{__dirname}/expected-output"
 
 StringifierStream = TestUtils.makeTransformStream "write", (chunk) ->
   JSON.stringify(chunk) + '\n'
 
-s = fs.createReadStream(infile)
+fs.createReadStream(infile)
   .pipe(new CommentDelimitingStream)
   .pipe(new StringifierStream)
-  .pipe(new DumpStream).on 'finish', ->
-    res = diff.diffLines(s.dump(),
-      fs.readFileSync("#{__dirname}/expected-output").toString())
+  .pipe(fs.createWriteStream outfile).on 'finish', ->
+    res = diff.diffLines(fs.readFileSync(outfile).toString(),
+      fs.readFileSync(compare_outfile).toString())
     if res.filter((el) -> el.added or el.removed).length isnt 0
       console.error "FAILED:"
       console.error "DIFF:"
