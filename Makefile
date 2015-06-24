@@ -49,6 +49,7 @@ distclean: clean
 
 ### TESTING
 TEST_DIR := test
+TEST_UTILS := $(TEST_DIR)/test-utils.coffee
 
 # unit testing
 UNIT_TEST_DIR := $(TEST_DIR)/unit
@@ -59,7 +60,7 @@ UNIT_TEST_OUTPUTS := $(addsuffix /output, $(UNIT_TEST_DIRS))
 # test, even if the test terminates with an error, and a successful test should
 # have no other files
 $(UNIT_TEST_DIR)/%/output: $(UNIT_TEST_DIR)/%/test.coffee \
-$(UNIT_TEST_DIR)/%/input $(OBJ_DIR)/%.js
+$(UNIT_TEST_DIR)/%/input $(OBJ_DIR)/%.js $(TEST_UTILS)
 	@echo -n "unit-test: "
 	@echo $@ | perl -pe 's/(^.*unit\/|\/output$$)//g'
 	$(COFFEE_CC) $< $(word 2, $^) > $@
@@ -69,7 +70,7 @@ INTEGRATION_TEST_DIR := $(TEST_DIR)/integration
 INTEGRATION_TEST_DIRS := $(wildcard $(INTEGRATION_TEST_DIR)/*)
 INTEGRATION_TEST_OUTPUTS := $(addsuffix /output, $(INTEGRATION_TEST_DIRS))
 $(INTEGRATION_TEST_DIR)/%/output: $(INTEGRATION_TEST_DIR)/%/test.coffee \
-$(INTEGRATION_TEST_DIR)/%/input all
+$(INTEGRATION_TEST_DIR)/%/input $(TEST_UTILS) all
 	@echo -n "integration-test: "
 	@echo $@ | perl -pe 's/(^.*integration\/|\/output$$)//g'
 	$(COFFEE_CC) $< $(word 2, $^) > $@

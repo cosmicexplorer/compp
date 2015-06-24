@@ -17,7 +17,9 @@ Transform = require 'transform-stream-extensions'
 module.exports =
 class CommentDelimitingStream extends Transform
   constructor: (opts = {}) ->
+    opts.objectMode = yes
     opts.readableObjectMode = yes
+    opts.writeableObjectMode = yes
     super opts
 
     @curBlock = ""

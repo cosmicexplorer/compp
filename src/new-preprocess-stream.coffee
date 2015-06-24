@@ -12,6 +12,8 @@ class PreprocessStream extends Transform
   constructor: (@filename, @language, @defines = {}, includeDirs = {},
     opts = {}) ->
     opts.objectMode = yes
+    opts.writeableObjectMode = yes
+    opts.readableObjectMode = yes
     super opts
 
     @includeDirs =
@@ -29,7 +31,6 @@ class PreprocessStream extends Transform
   processLine: (str) ->
     @push str
 
-  _transform: (chunk, enc, cb) ->
-    str = chunk.toString()
-    @processLine(str)
+  _transform: (obj, enc, cb) ->
+    @processLine(obj)
     cb?()

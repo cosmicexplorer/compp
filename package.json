@@ -24,6 +24,7 @@
     "stream"
   ],
   "devDependencies": {
+    "byline": "^4.2.1",
     "cli-color": "^1.0.0",
     "coffee-script": "1.9.x",
     "diff": "^1.4.0",

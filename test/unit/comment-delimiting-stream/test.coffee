@@ -7,14 +7,8 @@ TestUtils = require '../../test-utils'
 
 infile = process.argv[2]
 
-class StringifierStream extends Transform
-  constructor: (opts = {}) ->
-    opts.writableObjectMode = yes
-    super opts
-
-  _transform: (chunk, enc, cb) ->
-    @push JSON.stringify(chunk) + '\n'
-    cb?()
+StringifierStream = TestUtils.makeTransformStream "write", (chunk) ->
+  JSON.stringify(chunk) + '\n'
 
 s = fs.createReadStream(infile)
   .pipe(new CommentDelimitingStream)
@@ -29,14 +23,7 @@ s = fs.createReadStream(infile)
       process.exit 1
     checkLengths()
 
-class ConcatStringStream extends Transform
-  constructor: (opts = {}) ->
-    opts.writableObjectMode = yes
-    super opts
-
-  _transform: (chunk, enc, cb) ->
-    @push chunk.string
-    cb?()
+ConcatStringStream = TestUtils.makeTransformStream "write", (chk) -> chk.string
 
 checkLengths = ->
   s = fs.createReadStream(infile)
