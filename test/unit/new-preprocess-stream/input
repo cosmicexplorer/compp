@@ -1,1 +1,16 @@
-{"a":3}
+{"string":"/* #include <stdio.h> */","type":"blockComment"}
+{"string":"\n#include ","type":"text"}
+{"string":"\"test.h\"","type":"string"}
+{"string":"\n\n#define ASDF 3\n\n#define AAAA() (ASDF)\n\nint b = 3;\nint ","type":"text"}
+{"string":"/* hey \\\n     */","type":"blockComment"}
+{"string":" d = ","type":"text"}
+{"string":"/* */","type":"blockComment"}
+{"string":" 3 ","type":"text"}
+{"string":"//                          \\\n  /*                 */\n","type":"lineComment"}
+{"string":";\nint c = 2;\n\n  # define \\\n  CONST_VAR \\\n  42\n\n# ifdef A\n2\n\n#endif\n\n__LINE__\n__FILE__\n__LINE__\n\n","type":"text"}
+{"string":"/* #error hello */","type":"blockComment"}
+{"string":"\n\n#define TEST_FUN(x) ((x) + CONST_VAR)\n\n#define TEST_FUN_2(x, y, z) ((x) + (y) + (z))\n\nint main() {\n  int a = CONST_VAR;\n  int b = ASDF * AAAA();          ","type":"text"}
+{"string":"/* ASDF should expand to blank */","type":"blockComment"}
+{"string":"\n  int c = TEST_FUN(3); int d = TEST_FUN_2(a, b, c);\n  printf(","type":"text"}
+{"string":"\"hello world! my variable is %d!\\n\"","type":"string"}
+{"string":", a);\n}\n","type":"text"}

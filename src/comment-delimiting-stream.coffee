@@ -5,11 +5,6 @@
 # }
 # the concatenation of all the "string" portions is the same as the input text
 # this splits up c and c++ comments alike since c99
-#
-# this might have been doable using a standard parsing tool, but i'm not sure
-# how to transfer the c preprocessor syntax (given that it sits on top of the
-# actual c language syntax) to a normal parser generator, so i decided to just
-# roll it by hand
 
 utils = require './utilities'
 Transform = require 'transform-stream-extensions'

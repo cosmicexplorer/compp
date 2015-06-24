@@ -1,4 +1,4 @@
-.PHONY: all clean distclean check install
+.PHONY: all clean distclean check check-unit check-integration install
 .DELETE_ON_ERROR:
 
 # dependencies
@@ -23,14 +23,16 @@ BIN_DRIVER := $(BIN_DIR)/$(DRIVER)
 all: $(BIN_DRIVER)
 
 $(BIN_DRIVER): $(DEPS) $(OBJ)
+	@echo "bin: [$(OBJ)]->$@"
 	@cp $@-stub $@
 	@chmod +x $@
 
-$(OBJ_DIR)/%.js: $(SRC_DIR)/%.coffee
+$(OBJ_DIR)/%.js: $(SRC_DIR)/%.coffee $(DEPS)
+	@echo "compile: [$<]->$@"
 	$(COFFEE_CC) -o $(OBJ_DIR) -bc $<
 
 $(DEPS):
-	@echo "Installing required packages..."
+	@echo "prep: Installing required packages..."
 	@npm install
 
 
@@ -60,7 +62,7 @@ UNIT_TEST_OUTPUTS := $(addsuffix /output, $(UNIT_TEST_DIRS))
 # test, even if the test terminates with an error, and a successful test should
 # have no other files
 $(UNIT_TEST_DIR)/%/output: $(UNIT_TEST_DIR)/%/test.coffee \
-$(UNIT_TEST_DIR)/%/input $(OBJ_DIR)/%.js $(TEST_UTILS)
+$(UNIT_TEST_DIR)/%/input $(OBJ_DIR)/%.js $(TEST_UTILS) $(DEPS)
 	@echo -n "unit-test: "
 	@echo $@ | perl -pe 's/(^.*unit\/|\/output$$)//g'
 	$(COFFEE_CC) $< $(word 2, $^) > $@
@@ -70,12 +72,14 @@ INTEGRATION_TEST_DIR := $(TEST_DIR)/integration
 INTEGRATION_TEST_DIRS := $(wildcard $(INTEGRATION_TEST_DIR)/*)
 INTEGRATION_TEST_OUTPUTS := $(addsuffix /output, $(INTEGRATION_TEST_DIRS))
 $(INTEGRATION_TEST_DIR)/%/output: $(INTEGRATION_TEST_DIR)/%/test.coffee \
-$(INTEGRATION_TEST_DIR)/%/input $(TEST_UTILS) all
+$(INTEGRATION_TEST_DIR)/%/input $(TEST_UTILS) $(DEPS)
 	@echo -n "integration-test: "
 	@echo $@ | perl -pe 's/(^.*integration\/|\/output$$)//g'
 	$(COFFEE_CC) $< $(word 2, $^) > $@
 
-check: $(UNIT_TEST_OUTPUTS) $(INTEGRATION_TEST_OUTPUTS)
+check-unit: $(UNIT_TEST_OUTPUTS)
+check-integration: $(INTEGRATION_TEST_OUTPUTS)
+check: check-unit check-integration
 
 ### INSTALL
 install:

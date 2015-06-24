@@ -30,5 +30,9 @@ class PreprocessStream extends Transform
     @push str
 
   _transform: (obj, enc, cb) ->
+    # switch obj.type
+    #   when "lineComment" then @updateMarkers obj
+    #   when "blockComment" then @updateMarkers obj
+    #   when "string" then @updateMarkers obj
     @processLine(obj)
     cb?()
