@@ -79,7 +79,7 @@ $(INTEGRATION_TEST_DIR)/%/input $(TEST_UTILS) $(DEPS)
 
 check-unit: $(UNIT_TEST_OUTPUTS)
 check-integration: $(INTEGRATION_TEST_OUTPUTS)
-check: check-unit check-integration
+check: check-unit # check-integration
 
 ### INSTALL
 install:
