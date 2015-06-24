@@ -41,8 +41,7 @@ clean:
 	@rm -f $(TEST_COMPP_OBJ)
 	@rm -f $(BIN_DRIVER)
 	@rm -f $(UNIT_TEST_OUTPUTS)
-#	@rm -f $(INTEGRATION_TEST_CPP_OBJ)
-#	@rm -f $(INTEGRATION_TEST_COMPP_OBJ)
+	@rm -f $(INTEGRATION_TEST_OUTPUTS)
 
 distclean: clean
 	@rm -rf $(DEPS)
@@ -61,23 +60,21 @@ UNIT_TEST_OUTPUTS := $(addsuffix /output, $(UNIT_TEST_DIRS))
 # have no other files
 $(UNIT_TEST_DIR)/%/output: $(UNIT_TEST_DIR)/%/test.coffee \
 $(UNIT_TEST_DIR)/%/input $(OBJ_DIR)/%.js
+	@echo -n "unit-test: "
+	@echo $@ | perl -pe 's/(^.*unit\/|\/output$$)//g'
 	$(COFFEE_CC) $< $(word 2, $^) > $@
 
 # # integration testing (not happening rn)
-# INTEGRATION_TEST_DIR := $(TEST_DIR)/integration
-# INTEGRATION_TEST_INPUTS := $(wildcard $(INTEGRATION_TEST_DIR)/*.c)
-# # these are the output of cpp, the standard preprocessor
-# INTEGRATION_TEST_CPP_OBJ := $(addsuffix .cpp.out, $(INTEGRATION_TEST_INPUTS))
-# # these are the output of compp!
-# INTEGRATION_TEST_COMPP_OBJ := $(addsuffix .compp.out $(INTEGRATION_TEST_INPUTS))
+INTEGRATION_TEST_DIR := $(TEST_DIR)/integration
+INTEGRATION_TEST_DIRS := $(wildcard $(INTEGRATION_TEST_DIR)/*)
+INTEGRATION_TEST_OUTPUTS := $(addsuffix /output, $(INTEGRATION_TEST_DIRS))
+$(INTEGRATION_TEST_DIR)/%/output: $(INTEGRATION_TEST_DIR)/%/test.coffee \
+$(INTEGRATION_TEST_DIR)/%/input all
+	@echo -n "integration-test: "
+	@echo $@ | perl -pe 's/(^.*integration\/|\/output$$)//g'
+	$(COFFEE_CC) $< $(word 2, $^) > $@
 
-# %.cpp.out: %
-# 	cpp $< -P | $(FORMAT_OUT) - $@ -n0 -s2
-# %.compp.out: % %.cpp.out $(BIN_DRIVER)
-# 	$(word 3, $^) c $< -o $@
-# 	diff $(word 2, $^) $@
-
-check: $(UNIT_TEST_OUTPUTS)
+check: $(UNIT_TEST_OUTPUTS) $(INTEGRATION_TEST_OUTPUTS)
 
 ### INSTALL
 install:

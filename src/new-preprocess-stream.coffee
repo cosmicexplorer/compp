@@ -11,8 +11,7 @@ module.exports =
 class PreprocessStream extends Transform
   constructor: (@filename, @language, @defines = {}, includeDirs = {},
     opts = {}) ->
-
-    opts.readableObjectMode = yes
+    opts.objectMode = yes
     super opts
 
     @includeDirs =

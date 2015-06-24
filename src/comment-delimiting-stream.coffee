@@ -51,10 +51,7 @@ class CommentDelimitingStream extends Transform
       @indexAndNextState str, tok).filter((pair) ->
       pair[0] isnt -1).sort((pair1, pair2) ->
       pair1[0] - pair2[0])
-    if res?.length > 0
-      res[0]
-    else
-      [-1, ""]
+    if res?.length > 0 then res[0] else [-1, ""]
 
   # gets index of string within another string, assuming normal backslashing
   indexOfStringWithoutBackslash: (strAsRegex, str) ->
