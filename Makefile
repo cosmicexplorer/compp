@@ -1,4 +1,4 @@
-.PHONY: all clean distclean check check-unit check-integration install
+.PHONY: all clean distclean check check-unit check-integration install update
 .DELETE_ON_ERROR:
 
 # dependencies
@@ -35,6 +35,8 @@ $(DEPS):
 	@echo "prep: Installing required packages..."
 	@npm install
 
+update:
+	@npm install
 
 ### CLEANUP
 clean:

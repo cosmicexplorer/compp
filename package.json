@@ -5,7 +5,7 @@
   "license": "GPL-3.0",
   "author": "Danny McClanahan <danieldmcclanahan@gmail.com>",
   "scripts": {
-    "prepublish": "make",
+    "prepublish": "make check",
     "test": "make check"
   },
   "bin": {
